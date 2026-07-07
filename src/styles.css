@@ -943,3 +943,14 @@ body.light .streak-splash { background: rgba(238, 242, 249, 0.96); }
 body.reduce-motion *, body.reduce-motion *::before, body.reduce-motion *::after {
   animation-duration: 0.01s !important; transition-duration: 0.01s !important;
 }
+
+/* Baseline honesty checks */
+input.invalid { border-color: #ef4444 !important; }
+.field-error { font-size: 10px; font-weight: 800; color: #f87171; margin-top: 2px; }
+
+/* AI plan badge */
+.ai-chip {
+  display: inline-block; margin-left: 8px; padding: 2px 8px; border-radius: 8px;
+  font-size: 10px; font-weight: 800; letter-spacing: 0.5px; vertical-align: 2px;
+  color: #d8b4fe; border: 1px solid #a78bfa; background: rgba(167,139,250,0.14);
+}

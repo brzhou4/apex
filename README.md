@@ -11,14 +11,18 @@ npm run dev          # front end (works fully on its own)
 
 Open the printed URL (mobile-width layout, ~375px).
 
-### Optional: Claude goal parser (real LLM)
+### Optional: Claude goal parser + AI plans (real LLM)
 
 ```bash
 export ANTHROPIC_API_KEY=sk-ant-...   # key stays server-side, never shipped to the browser
-npm run server                         # starts the parser API on :8787
+npm run server                         # starts the API on :8787
 ```
 
-With the server + key running, onboarding parses your dream goal with **Claude (`claude-opus-4-8`, structured outputs)** and the Gap Analysis shows "🤖 parsed by Claude". Without it, the app falls back to the local rule-based parser automatically — no errors, no setup required. The front end proxies `/api` → `:8787` (see `vite.config.js`).
+With the server + key running:
+- onboarding parses your dream goal with **Claude** (`/api/parse-goal`, structured outputs), and
+- **every goal gets a personalized 8-week plan written by Claude** (`/api/plan-goal`, `claude-sonnet-5`) — any goal works, from "score a 1600" to "own a capybara"; plans show a "✦ AI plan" badge in the Dream tab.
+
+Without the server, the app falls back to local rule-based templates automatically — no errors, no setup required. The front end proxies `/api` → `:8787` (see `vite.config.js`).
 
 ## What's implemented (from the plan)
 

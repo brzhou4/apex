@@ -225,6 +225,44 @@ const GRADE_PTS = {
   'Middle school': 60, 'High school': 110, 'College': 150, 'Grad school': 185, 'Working professional': 200,
 }
 
+// Sanity limits per field — a 2-pound human doesn't get a Human Score.
+// [min, max, label used in the error message]
+export const BASELINE_LIMITS = {
+  age: [5, 100, 'age'],
+  heightFt: [3, 8, 'height (ft)'],
+  heightIn: [0, 11, 'inches'],
+  weightLbs: [50, 700, 'weight'],
+  steps: [0, 60000, 'daily steps'],
+  workouts: [0, 14, 'workouts/week'],
+  sleepHrs: [0, 16, 'sleep hours'],
+  meditDays: [0, 7, 'meditation days'],
+  studyHrs: [0, 100, 'study hours'],
+  pushups: [0, 200, 'push-ups'],
+  benchLbs: [0, 700, 'bench press'],
+  goalWeightLbs: [50, 700, 'goal weight'],
+}
+
+// Returns { field: 'human message' } for every FILLED field that's outside
+// the believable range. Empty object = the baseline is honest enough to score.
+export function validateBaseline(bl = {}) {
+  const errors = {}
+  Object.entries(BASELINE_LIMITS).forEach(([key, [min, max, label]]) => {
+    const raw = bl[key]
+    if (raw === '' || raw == null) return
+    const n = Number(raw)
+    if (Number.isNaN(n) || n < min || n > max) {
+      errors[key] = `${label} must be ${min}–${max}`
+    }
+  })
+  return errors
+}
+
+const inRange = (bl, key) => {
+  const [min, max] = BASELINE_LIMITS[key]
+  const n = Number(bl[key])
+  return !Number.isNaN(n) && n >= min && n <= max ? n : null
+}
+
 export function bmiFrom(baseline) {
   const inches = (Number(baseline.heightFt) || 0) * 12 + (Number(baseline.heightIn) || 0)
   const lbs = Number(baseline.weightLbs) || 0
@@ -233,19 +271,27 @@ export function bmiFrom(baseline) {
 }
 
 export function computeHumanScore(baseline = {}) {
-  const steps = Number(baseline.steps) || 0
-  const workouts = Number(baseline.workouts) || 0
-  const sleep = Number(baseline.sleepHrs) || 0
+  // Only believable values count — out-of-range entries score as absent.
+  const steps = inRange(baseline, 'steps') ?? 0
+  const workouts = inRange(baseline, 'workouts') ?? 0
+  const sleep = inRange(baseline, 'sleepHrs') ?? 0
   const stress = Number(baseline.stress) || 5
-  const meditDays = Number(baseline.meditDays) || 0
-  const studyHrs = Number(baseline.studyHrs) || 0
+  const meditDays = inRange(baseline, 'meditDays') ?? 0
+  const studyHrs = inRange(baseline, 'studyHrs') ?? 0
   const skill = Number(baseline.skill) || 0
-  const bmi = bmiFrom(baseline)
+  const validBody = inRange(baseline, 'heightFt') != null && inRange(baseline, 'weightLbs') != null
+  const bmi = validBody ? bmiFrom(baseline) : null
 
-  // BODY: steps + workouts + sleep + BMI proximity to ~22
+  // BODY: steps + workouts + sleep + BMI proximity to ~22. If the dream
+  // involves strength, logged push-ups/bench sharpen the picture.
   const sleepPts = (1 - Math.min(Math.abs(sleep - 8), 4) / 4) * 250
   const bmiPts = bmi == null ? 150 : (1 - Math.min(Math.abs(bmi - 22), 12) / 12) * 250
-  const body = Math.round(clamp01(steps / 12000) * 250 + clamp01(workouts / 6) * 250 + sleepPts + bmiPts)
+  let body = Math.round(clamp01(steps / 12000) * 250 + clamp01(workouts / 6) * 250 + sleepPts + bmiPts)
+  const pushups = inRange(baseline, 'pushups')
+  const bench = inRange(baseline, 'benchLbs')
+  const weight = inRange(baseline, 'weightLbs')
+  if (pushups != null) body += Math.round(clamp01(pushups / 50) * 60)
+  if (bench != null && weight) body += Math.round(clamp01(bench / (1.25 * weight)) * 60)
 
   // MIND: low stress + meditation + sleep
   const mind = Math.round((1 - clamp01((stress - 1) / 9)) * 400 + clamp01(meditDays / 7) * 350 + sleepPts)
@@ -431,7 +477,7 @@ export const GOAL_TYPES = [
   },
   {
     id: 'nutrition', icon: '🥗', label: 'Eat Lean',
-    match: /(eat lean|eat clean|diet|nutrition|healthy eating|cut sugar|meal prep|lose fat|lose weight)/i,
+    match: /(eat lean|eat clean|diet|nutrition|healthy eating|cut sugar|meal prep|lose (some |a little )?(fat|weight)|weight loss|slim down)/i,
     questions: [
       { key: 'mealsOut', label: 'Takeout / junk meals per week', type: 'number', placeholder: '6' },
       { key: 'cook', label: 'Can you cook?', type: 'select', options: ['Not really', 'Basics', 'Confident'] },
@@ -613,20 +659,41 @@ export const GOAL_TYPES = [
   },
 ]
 
-// Split a dream-goal sentence into individual typed goals.
+// Split a dream-goal sentence into individual typed goals. Duplicates are
+// MERGED, not degraded: typing "score a 1600" four times yields one SAT
+// goal, and two identical custom goals collapse into one.
 export function parseGoals(text) {
   const frags = (text || '')
     .split(/,|;|\n|\band\b|\+/i)
     .map((s) => s.trim())
     .filter((s) => s.length > 2)
   const list = frags.length ? frags : [text || 'Level up']
-  const seen = new Set()
-  return list.map((frag, i) => {
-    let type = GOAL_TYPES.find((t) => t.id !== 'generic' && t.match.test(frag))
-    if (!type || seen.has(type.id)) type = GOAL_TYPES[GOAL_TYPES.length - 1] // generic
-    if (type.id !== 'generic') seen.add(type.id)
-    return { goalId: `g${i}`, typeId: type.id, icon: type.icon, typeLabel: type.label, text: frag }
+  const seenTypes = new Set()
+  const seenText = new Set()
+  const goals = []
+  list.forEach((frag) => {
+    const matched = GOAL_TYPES.find((t) => t.id !== 'generic' && t.match.test(frag))
+    if (matched) {
+      if (seenTypes.has(matched.id)) return // same goal type again — merge
+      seenTypes.add(matched.id)
+      goals.push({ goalId: `g${goals.length}`, typeId: matched.id, icon: matched.icon, typeLabel: matched.label, text: frag })
+    } else {
+      const key = frag.toLowerCase().replace(/\s+/g, ' ')
+      if (seenText.has(key)) return // identical custom goal — merge
+      seenText.add(key)
+      goals.push({ goalId: `g${goals.length}`, typeId: 'generic', icon: '🎯', typeLabel: 'Custom Goal', text: frag })
+    }
   })
+  return goals.length ? goals : [{ goalId: 'g0', typeId: 'generic', icon: '🎯', typeLabel: 'Custom Goal', text: text || 'Level up' }]
+}
+
+// What the dream text asks of the body — drives which OPTIONAL baseline
+// fields appear. No mention, no fields, no invented tasks.
+export function goalFlags(text = '') {
+  return {
+    strength: /(strength|stronger|muscle|jacked|swole|lift|lifting|bench|squat|deadlift|bulk)/i.test(text),
+    cut: /(lose (some |a little )?(weight|fat)|weight loss|cut|cutting|lean|shred|slim|fat loss|drop (some )?(pounds|lbs))/i.test(text),
+  }
 }
 
 export function buildGoalPlan(goal, details) {
