@@ -17,9 +17,21 @@ export const bb = backendEnabled
   ? createClient({ appId, apiUrl, ...(anonKey ? { anonKey } : {}) })
   : null
 
-const soft = (label) => (err) => {
-  console.warn(`butterbase ${label}:`, err?.message || err)
-  return null
+// The SDK's query builder is thenable but NOT a full Promise (no .catch),
+// so every call goes through run(): await it, swallow + log failures.
+async function run(query, label) {
+  try {
+    return await query
+  } catch (err) {
+    console.warn(`butterbase ${label}:`, err?.message || err)
+    return { data: null, error: err }
+  }
+}
+
+// Inserts return a single row object; selects return arrays. Normalize.
+const firstRow = (res) => {
+  const d = res?.data
+  return Array.isArray(d) ? d[0] : d || null
 }
 
 // --- Auth ---
@@ -44,7 +56,7 @@ export async function cloudSignIn(email, password) {
 
 export async function cloudSignOut() {
   if (!bb) return
-  await bb.auth.signOut().catch(soft('signOut'))
+  await run(bb.auth.signOut(), 'signOut')
 }
 
 export function onCloudAuthChange(cb) {
@@ -69,10 +81,14 @@ export async function syncProfile(state) {
     streak: state.streak || 0,
     xp: state.xp || 0,
   }
-  // Upsert by user_id: update first, insert when no row moved.
-  const upd = await bb.from('profiles').update(row).eq('user_id', user.id).catch(soft('profile update'))
-  if (!upd || !upd.data || upd.data.length === 0) {
-    await bb.from('profiles').insert(row).catch(soft('profile insert'))
+  // Upsert by user_id. Updates/deletes only work through the primary key on
+  // Butterbase, so: find the row id first, then update by id, else insert.
+  const existing = await run(bb.from('profiles').select('id').eq('user_id', user.id).limit(1), 'profile lookup')
+  const row0 = firstRow(existing)
+  if (row0?.id) {
+    await run(bb.from('profiles').update(row).eq('id', row0.id), 'profile update')
+  } else {
+    await run(bb.from('profiles').insert(row), 'profile insert')
   }
   return row
 }
@@ -81,12 +97,11 @@ export async function syncProfile(state) {
 
 export async function fetchCloudPosts(limit = 30) {
   if (!bb) return []
-  const { data, error } = await bb
+  const { data, error } = await run(bb
     .from('posts')
     .select('*')
     .order('created_at', { ascending: false })
-    .limit(limit)
-    .catch(() => ({ data: null, error: 'network' }))
+    .limit(limit), 'posts fetch')
   if (error || !Array.isArray(data)) return []
   // Map DB rows onto the app's post shape.
   return data.map((r) => ({
@@ -108,12 +123,11 @@ export async function fetchCloudPosts(limit = 30) {
 
 export async function fetchCloudComments(cloudIds) {
   if (!bb || cloudIds.length === 0) return {}
-  const { data } = await bb
+  const { data } = await run(bb
     .from('comments')
     .select('*')
     .in('post_id', cloudIds)
-    .order('created_at', { ascending: true })
-    .catch(() => ({ data: null }))
+    .order('created_at', { ascending: true }), 'comments fetch')
   const byPost = {}
   ;(data || []).forEach((c) => {
     const list = byPost[c.post_id] || (byPost[c.post_id] = [])
@@ -125,7 +139,7 @@ export async function fetchCloudComments(cloudIds) {
 export async function publishCloudPost(state, post) {
   const user = await cloudUser()
   if (!user) return null
-  const { data } = await bb.from('posts').insert({
+  const res = await run(bb.from('posts').insert({
     user_id: user.id,
     author_name: state.name || 'You',
     author_color: state.avatarColor || '',
@@ -133,28 +147,31 @@ export async function publishCloudPost(state, post) {
     text: post.text,
     thumbnail: post.thumbnail || null,
     likes: 0,
-  }).catch(soft('post insert'))
-  return data?.[0]?.id || null
+  }), 'post insert')
+  return firstRow(res)?.id || null
 }
 
 export async function addCloudComment(state, cloudPostId, text) {
   const user = await cloudUser()
   if (!user) return
-  await bb.from('comments').insert({
+  await run(bb.from('comments').insert({
     post_id: cloudPostId,
     user_id: user.id,
     author_name: state.name || 'You',
     text,
-  }).catch(soft('comment insert'))
+  }), 'comment insert')
 }
 
 export async function setCloudLike(cloudPostId, liked, newCount) {
   const user = await cloudUser()
   if (!user) return
   if (liked) {
-    await bb.from('likes').insert({ post_id: cloudPostId, user_id: user.id }).catch(soft('like insert'))
+    await run(bb.from('likes').insert({ post_id: cloudPostId, user_id: user.id }), 'like insert')
   } else {
-    await bb.from('likes').delete().eq('post_id', cloudPostId).eq('user_id', user.id).catch(soft('like delete'))
+    // Deletes only work by primary key — look the like row up first.
+    const found = await run(bb.from('likes').select('id').eq('post_id', cloudPostId).eq('user_id', user.id).limit(1), 'like lookup')
+    const like = firstRow(found)
+    if (like?.id) await run(bb.from('likes').delete().eq('id', like.id), 'like delete')
   }
-  await bb.from('posts').update({ likes: Math.max(0, newCount) }).eq('id', cloudPostId).catch(soft('like count'))
+  await run(bb.from('posts').update({ likes: Math.max(0, newCount) }).eq('id', cloudPostId), 'like count')
 }
