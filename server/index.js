@@ -5,6 +5,7 @@
 import express from 'express'
 import cors from 'cors'
 import Anthropic from '@anthropic-ai/sdk'
+import { execFile } from 'node:child_process'
 
 const app = express()
 app.use(cors())
@@ -12,6 +13,36 @@ app.use(express.json())
 
 const apiKey = process.env.ANTHROPIC_API_KEY
 const client = apiKey ? new Anthropic() : null
+
+// No API key? Fall back to headless Claude Code (`claude -p`) — it runs on
+// your Claude subscription. Install: npm i -g @anthropic-ai/claude-code,
+// then run `claude` once and /login.
+let cliReady = null
+function checkCli() {
+  if (cliReady !== null) return Promise.resolve(cliReady)
+  return new Promise((resolve) => {
+    execFile('claude', ['--version'], { timeout: 10000 }, (err) => {
+      cliReady = !err
+      resolve(cliReady)
+    })
+  })
+}
+
+function callClaudeCliJSON(systemPrompt, userPrompt) {
+  return new Promise((resolve, reject) => {
+    const prompt = `${systemPrompt}\n\n---\n\n${userPrompt}\n\nRespond with ONLY the JSON object. No markdown fences, no commentary.`
+    const child = execFile('claude', ['-p', prompt, '--model', 'sonnet'], { timeout: 180000, maxBuffer: 4 * 1024 * 1024 }, (err, stdout = '', stderr = '') => {
+      const out = String(stdout).trim()
+      if (/not logged in/i.test(out + stderr)) return reject(new Error('Claude Code CLI is not logged in — run `claude` once and /login.'))
+      if (err) return reject(new Error(out || String(stderr).trim() || err.message))
+      const s = out.indexOf('{')
+      const e = out.lastIndexOf('}')
+      if (s < 0 || e <= s) return reject(new Error('CLI returned no JSON'))
+      try { resolve(JSON.parse(out.slice(s, e + 1))) } catch (x) { reject(x) }
+    })
+    child.stdin?.end()
+  })
+}
 
 // Structured-output schema — guarantees the model returns parseable JSON.
 const SCHEMA = {
@@ -35,8 +66,8 @@ const SCHEMA = {
 const SYSTEM = `You parse a user's 5-year dream goal into a structured plan for APEX, a self-improvement app.
 Return a concise domain label, whether their stated motivation reads as intrinsic (growth, mastery, meaning) or extrinsic (money, status, beating others), and exactly three concrete daily micro-tasks tailored to the goal — the first skill/intellect-focused, the second body/fitness, the third mind/reflection. Keep each task short and actionable.`
 
-app.get('/api/health', (_req, res) => {
-  res.json({ ok: true, claude: !!client })
+app.get('/api/health', async (_req, res) => {
+  res.json({ ok: true, claude: !!client, cli: await checkCli() })
 })
 
 app.post('/api/parse-goal', async (req, res) => {
@@ -124,36 +155,62 @@ Rules:
 - The daily task should be something they can actually do most days and film themselves doing (it gets camera-verified).
 - Keep every string tight: focus lines under 12 words, objectives under 14 words.`
 
+// Plain-text schema spec for the CLI path (no structured outputs there).
+const PLAN_SPEC = `Return a single JSON object with EXACTLY these fields:
+{
+  "typeLabel": "short 2-4 word label for the goal",
+  "scheduleLabel": "one-line weekly rhythm summary",
+  "schedule": [ { "day": "Daily|Mon|...|Sun", "focus": "..." } ]  (2-4 items),
+  "weeks": [ { "week": 1-8, "focus": "one sentence", "objectives": ["...","...","..."] } ]  (EXACTLY 8 items, 3 objectives each),
+  "task": { "pillar": "MIND|BODY|INTELLECT", "title": "short imperative daily task", "unit": "min", "goldTarget": 10-60 },
+  "progress": 0-100
+}`
+
+function normalizePlan(plan) {
+  if (!Array.isArray(plan.weeks) || plan.weeks.length !== 8) throw new Error('bad weeks')
+  if (!plan.task || !plan.task.title) throw new Error('bad task')
+  plan.weeks = plan.weeks.map((w, i) => ({ ...w, week: i + 1, objectives: (w.objectives || []).slice(0, 3) }))
+  plan.progress = Math.max(2, Math.min(97, Math.round(plan.progress || 10)))
+  plan.task.goldTarget = Math.max(5, Math.min(120, Math.round(plan.task.goldTarget || 30)))
+  if (!['MIND', 'BODY', 'INTELLECT'].includes(plan.task.pillar)) plan.task.pillar = 'MIND'
+  return plan
+}
+
 app.post('/api/plan-goal', async (req, res) => {
   const goal = ((req.body && req.body.goal) || '').toString().slice(0, 300)
   const details = (req.body && req.body.details) || {}
   if (!goal.trim()) return res.status(400).json({ error: 'missing_goal' })
-  if (!client) {
-    return res.status(503).json({ error: 'no_api_key', message: 'Set ANTHROPIC_API_KEY to enable AI plans.' })
-  }
+
+  const detailLines = Object.entries(details)
+    .filter(([, v]) => String(v || '').trim())
+    .map(([k, v]) => `- ${k}: ${String(v).slice(0, 120)}`)
+    .join('\n')
+  const userPrompt = `Goal, in the user's words: "${goal}"\n\nTheir answers:\n${detailLines || '- (none given)'}\n\nBuild the 8-week plan.`
+
   try {
-    const detailLines = Object.entries(details)
-      .filter(([, v]) => String(v || '').trim())
-      .map(([k, v]) => `- ${k}: ${String(v).slice(0, 120)}`)
-      .join('\n')
-    const response = await client.messages.create({
-      model: 'claude-sonnet-5',
-      max_tokens: 2048,
-      system: PLAN_SYSTEM,
-      messages: [{
-        role: 'user',
-        content: `Goal, in the user's words: "${goal}"\n\nTheir answers:\n${detailLines || '- (none given)'}\n\nBuild the 8-week plan.`,
-      }],
-      output_config: { format: { type: 'json_schema', schema: PLAN_SCHEMA } },
-    })
-    const text = response.content.find((b) => b.type === 'text')?.text || '{}'
-    const plan = JSON.parse(text)
-    // Hard guarantees the client relies on.
-    if (!Array.isArray(plan.weeks) || plan.weeks.length !== 8) throw new Error('bad weeks')
-    plan.weeks = plan.weeks.map((w, i) => ({ ...w, week: i + 1, objectives: (w.objectives || []).slice(0, 3) }))
-    plan.progress = Math.max(2, Math.min(97, Math.round(plan.progress || 10)))
-    plan.task.goldTarget = Math.max(5, Math.min(120, Math.round(plan.task.goldTarget || 30)))
-    res.json({ source: 'claude', ...plan })
+    let plan
+    let via
+    if (client) {
+      const response = await client.messages.create({
+        model: 'claude-sonnet-5',
+        max_tokens: 2048,
+        system: PLAN_SYSTEM,
+        messages: [{ role: 'user', content: userPrompt }],
+        output_config: { format: { type: 'json_schema', schema: PLAN_SCHEMA } },
+      })
+      const text = response.content.find((b) => b.type === 'text')?.text || '{}'
+      plan = JSON.parse(text)
+      via = 'api'
+    } else if (await checkCli()) {
+      plan = await callClaudeCliJSON(`${PLAN_SYSTEM}\n\n${PLAN_SPEC}`, userPrompt)
+      via = 'claude-code'
+    } else {
+      return res.status(503).json({
+        error: 'no_backend',
+        message: 'Set ANTHROPIC_API_KEY, or install Claude Code (npm i -g @anthropic-ai/claude-code) and /login once.',
+      })
+    }
+    res.json({ source: 'claude', via, ...normalizePlan(plan) })
   } catch (err) {
     console.error('plan-goal error:', err?.message)
     res.status(502).json({ error: 'llm_failed', message: err?.message })

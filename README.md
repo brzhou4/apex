@@ -13,12 +13,20 @@ Open the printed URL (mobile-width layout, ~375px).
 
 ### Optional: Claude goal parser + AI plans (real LLM)
 
+Two ways to power it — pick either:
+
 ```bash
+# Option A: an API key (billed to your Anthropic console account)
 export ANTHROPIC_API_KEY=sk-ant-...   # key stays server-side, never shipped to the browser
 npm run server                         # starts the API on :8787
+
+# Option B: no key — headless Claude Code on your Claude subscription
+npm i -g @anthropic-ai/claude-code     # once
+claude                                 # once — run /login, then exit
+npm run server
 ```
 
-With the server + key running:
+With the server running (either way):
 - onboarding parses your dream goal with **Claude** (`/api/parse-goal`, structured outputs), and
 - **every goal gets a personalized 8-week plan written by Claude** (`/api/plan-goal`, `claude-sonnet-5`) — any goal works, from "score a 1600" to "own a capybara"; plans show a "✦ AI plan" badge in the Dream tab.
 
