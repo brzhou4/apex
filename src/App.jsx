@@ -25,6 +25,10 @@ function Ic({ src, alt = '', size = 18, style }) {
   return <img className={`ic-img${emerald ? ' ic-emerald' : ''}`} src={src} alt={alt} width={size} height={size} loading="lazy" style={style} />
 }
 import { parseDreamGoalRemote, planGoalRemote } from './api.js'
+import {
+  backendEnabled, cloudUser, cloudSignIn, cloudSignUp, cloudSignOut, syncProfile,
+  fetchCloudPosts, fetchCloudComments, publishCloudPost, addCloudComment, setCloudLike,
+} from './backend.js'
 import { ProofRecorder, TimelapseGallery, FocusDuel } from './Proof.jsx'
 import { DEFAULT_CAPTURE_MS, loadTimelapse } from './proof.js'
 
@@ -697,6 +701,14 @@ function Dashboard({ state, setState }) {
     if (!state.pet) setState((s) => ({ ...s, pet: { ...DEFAULT_PET }, fruits: s.fruits || 0 }))
   }, [state.duel, state.proofLog, state.tierLog, state.social, state.pet, setState])
 
+  // Mirror the public bits of your profile into Butterbase (no-op unless the
+  // backend is configured AND you're signed in — see Settings → Cloud).
+  useEffect(() => {
+    if (!backendEnabled) return
+    syncProfile(state).catch(() => {})
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [state.name, state.bio, state.equippedTitle, state.streak])
+
   // Swipe / horizontal scroll anywhere in the view to move between tabs.
   function shiftTab(dir) {
     const order = NAV_TABS.map((t) => t.id)
@@ -1077,6 +1089,93 @@ function StreakSplash({ streak, onDone }) {
   )
 }
 
+/* ---------------- Cloud account (Butterbase) ---------------- */
+
+// Sign in to the shared world: your profile syncs and your posts land on
+// every user's feed. Renders setup instructions until the backend is
+// configured; the whole app works offline without it.
+function CloudAccount({ state, flash }) {
+  const [email, setEmail] = useState('')
+  const [pw, setPw] = useState('')
+  const [meCloud, setMeCloud] = useState(null)
+  const [busy, setBusy] = useState(false)
+  const [err, setErr] = useState('')
+
+  useEffect(() => {
+    if (backendEnabled) cloudUser().then(setMeCloud)
+  }, [])
+
+  if (!backendEnabled) {
+    return (
+      <div className="card">
+        <h3><Ic src={IMGS.globe} alt="🌐" size={18} /> Cloud (Butterbase)</h3>
+        <div className="sub">
+          Not configured yet — the app runs fully on this device. To go live with real accounts and a shared feed:
+        </div>
+        <div className="sub" style={{ marginTop: 8, fontFamily: 'monospace', fontSize: 11, lineHeight: 1.8 }}>
+          npx @butterbase/cli login<br />
+          npx @butterbase/cli apps create apex<br />
+          npx @butterbase/cli schema apply butterbase/schema.json<br />
+          echo "VITE_BUTTERBASE_APP_ID=app_…" &gt;&gt; .env
+        </div>
+      </div>
+    )
+  }
+
+  async function go(kind) {
+    if (busy) return
+    setBusy(true); setErr('')
+    const fn = kind === 'in' ? cloudSignIn : cloudSignUp
+    const { error } = await fn(email.trim(), pw)
+    if (error) {
+      setErr(error)
+    } else {
+      const u = await cloudUser()
+      setMeCloud(u)
+      syncProfile(state).catch(() => {})
+      flash(kind === 'in' ? <><Ic src={IMGS.globe} alt="" size={15} /> Signed in — your feed is live</> : 'Account created — you are live!')
+    }
+    setBusy(false)
+  }
+
+  async function bye() {
+    await cloudSignOut()
+    setMeCloud(null)
+    flash('Signed out — back to device-only mode')
+  }
+
+  return (
+    <div className="card">
+      <h3><Ic src={IMGS.globe} alt="🌐" size={18} /> Cloud (Butterbase)</h3>
+      {meCloud ? (
+        <>
+          <div className="sub">
+            Signed in as <b style={{ color: 'var(--text)' }}>{meCloud.email || 'you'}</b> — your profile syncs and your posts reach everyone's feed.
+          </div>
+          <button className="btn ghost" onClick={bye} style={{ marginTop: 10 }}>Sign out</button>
+        </>
+      ) : (
+        <>
+          <div className="sub" style={{ marginBottom: 8 }}>Sign in to post to the shared feed and sync your profile.</div>
+          <Field label="Email"><input type="email" value={email} onChange={(e) => setEmail(e.target.value)} placeholder="you@example.com" /></Field>
+          <div style={{ marginTop: 8 }}>
+            <Field label="Password"><input type="password" value={pw} onChange={(e) => setPw(e.target.value)} placeholder="8+ characters" /></Field>
+          </div>
+          {err && <div className="field-error" style={{ marginTop: 6 }}>{err}</div>}
+          <div style={{ display: 'flex', gap: 10 }}>
+            <button className="btn" style={{ flex: 1 }} disabled={busy || !email.trim() || pw.length < 8} onClick={() => go('in')}>
+              {busy ? '…' : 'Sign in'}
+            </button>
+            <button className="btn ghost" style={{ flex: 1 }} disabled={busy || !email.trim() || pw.length < 8} onClick={() => go('up')}>
+              Create account
+            </button>
+          </div>
+        </>
+      )}
+    </div>
+  )
+}
+
 /* ---------------- Settings ---------------- */
 
 // Full-screen settings: theme, profile shortcuts, your timelapse vault, and
@@ -1117,6 +1216,8 @@ function Settings({ state, setState, flash, onClose, onEditProfile }) {
             </button>
           </div>
         </div>
+
+        <CloudAccount state={state} flash={flash} />
 
         <div className="card">
           <h3>Account</h3>
@@ -2106,6 +2207,19 @@ function Feed({ state, setState, flash, openMyProfile }) {
   const social = state.social || { following: [], posts: [] }
   const following = social.following || []
 
+  // Real posts from other Butterbase users, merged into the feed.
+  const [cloudPosts, setCloudPosts] = useState([])
+  useEffect(() => {
+    if (!backendEnabled) return
+    let dead = false
+    fetchCloudPosts().then(async (ps) => {
+      if (dead || ps.length === 0) return
+      const commentsByPost = await fetchCloudComments(ps.map((p) => p.cloudId))
+      if (!dead) setCloudPosts(ps.map((p) => ({ ...p, comments: commentsByPost[p.cloudId] || [] })))
+    })
+    return () => { dead = true }
+  }, [])
+
   const me = {
     id: 'me',
     name: state.name || 'You',
@@ -2113,7 +2227,19 @@ function Feed({ state, setState, flash, openMyProfile }) {
     color: state.avatarColor,
     title: SHOP_ITEMS.find((i) => i.id === state.equippedTitle)?.label || null,
   }
-  const authorOf = (post) => (post.userId === 'me' ? me : SOCIAL_USERS.find((u) => u.id === post.userId))
+  const authorOf = (post) => {
+    if (post.cloud) {
+      return {
+        id: post.userId,
+        name: post.authorName,
+        color: post.authorColor || 'var(--blue)',
+        title: SHOP_ITEMS.find((i) => i.id === post.authorTitle)?.label || null,
+        photo: null,
+        cloudAuthor: true,
+      }
+    }
+    return post.userId === 'me' ? me : SOCIAL_USERS.find((u) => u.id === post.userId)
+  }
 
   function toggleFollow(user) {
     const isFollowing = following.includes(user.id)
@@ -2143,10 +2269,20 @@ function Feed({ state, setState, flash, openMyProfile }) {
     }
     setState((s) => ({ ...s, social: { ...s.social, posts: [post, ...(s.social?.posts || [])] } }))
     setDraft(''); setAttachId(null); setComposing(false)
+    // Write-through to the shared cloud feed (no-op unless signed in).
+    if (backendEnabled) publishCloudPost(state, post).catch(() => {})
     flash(<>Posted <Ic src={IMGS.party} alt="" size={14} /></>)
   }
 
   function toggleLike(id) {
+    const cp = cloudPosts.find((p) => p.id === id)
+    if (cp) {
+      const liked = !cp.likedByMe
+      const likes = cp.likes + (liked ? 1 : -1)
+      setCloudPosts((ps) => ps.map((p) => (p.id === id ? { ...p, likedByMe: liked, likes } : p)))
+      setCloudLike(cp.cloudId, liked, likes)
+      return
+    }
     setState((s) => ({
       ...s,
       social: {
@@ -2161,14 +2297,20 @@ function Feed({ state, setState, flash, openMyProfile }) {
     const text = (commentDrafts[id] || '').trim()
     if (!text) return
     const comment = { id: `c-${Date.now()}`, name: state.name || 'You', text, ts: Date.now() }
-    setState((s) => ({
-      ...s,
-      social: {
-        ...s.social,
-        posts: s.social.posts.map((p) =>
-          p.id === id ? { ...p, comments: [...(p.comments || []), comment] } : p),
-      },
-    }))
+    const cp = cloudPosts.find((p) => p.id === id)
+    if (cp) {
+      setCloudPosts((ps) => ps.map((p) => (p.id === id ? { ...p, comments: [...p.comments, comment] } : p)))
+      addCloudComment(state, cp.cloudId, text)
+    } else {
+      setState((s) => ({
+        ...s,
+        social: {
+          ...s.social,
+          posts: s.social.posts.map((p) =>
+            p.id === id ? { ...p, comments: [...(p.comments || []), comment] } : p),
+        },
+      }))
+    }
     setCommentDrafts((d) => ({ ...d, [id]: '' }))
     setOpenComments((o) => ({ ...o, [id]: true }))
   }
@@ -2182,7 +2324,7 @@ function Feed({ state, setState, flash, openMyProfile }) {
     } catch { /* user cancelled the share sheet */ }
   }
 
-  const posts = [...(social.posts || [])].sort((a, b) => b.ts - a.ts)
+  const posts = [...cloudPosts, ...(social.posts || [])].sort((a, b) => b.ts - a.ts)
   const q = query.trim().toLowerCase()
   const results = q
     ? SOCIAL_USERS.filter((u) => u.name.toLowerCase().includes(q) || (u.bio || '').toLowerCase().includes(q))
@@ -2240,19 +2382,20 @@ function Feed({ state, setState, flash, openMyProfile }) {
         return (
           <div className="card feed-post boxed" key={p.id}>
             <div className="fp-pad feed-author">
-              <span onClick={() => (isMe ? openMyProfile() : setViewing(author))} style={{ cursor: 'pointer', display: 'inline-flex' }}>
+              <span onClick={() => (isMe ? openMyProfile() : author.cloudAuthor ? null : setViewing(author))} style={{ cursor: author.cloudAuthor && !isMe ? 'default' : 'pointer', display: 'inline-flex' }}>
                 {author.photo
                   ? <img className="member-photo" src={author.photo} alt="" />
                   : <span className="member-photo member-photo-you" style={{ background: author.color || 'var(--blue)' }}>{author.name[0]}</span>}
               </span>
-              <div className="grow" onClick={() => (isMe ? openMyProfile() : setViewing(author))} style={{ cursor: 'pointer' }}>
+              <div className="grow" onClick={() => (isMe ? openMyProfile() : author.cloudAuthor ? null : setViewing(author))} style={{ cursor: author.cloudAuthor && !isMe ? 'default' : 'pointer' }}>
                 <div className="feed-name">
                   {author.name}
                   {author.title && <span className="profile-title" style={{ fontSize: 9, padding: '1px 6px', ...titleChipStyleByLabel(author.title) }}>{author.title}</span>}
+                  {p.cloud && <Ic src={IMGS.globe} alt="live" size={12} />}
                 </div>
                 <div className="feed-time">{timeAgo(p.ts)} ago</div>
               </div>
-              {!isMe && !following.includes(author.id) && (
+              {!isMe && !author.cloudAuthor && !following.includes(author.id) && (
                 <button className="follow-btn" onClick={() => toggleFollow(author)}>Follow</button>
               )}
             </div>

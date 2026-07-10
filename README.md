@@ -32,6 +32,19 @@ With the server running (either way):
 
 Without the server, the app falls back to local rule-based templates automatically — no errors, no setup required. The front end proxies `/api` → `:8787` (see `vite.config.js`).
 
+### Optional: Butterbase backend (accounts + shared feed)
+
+APEX is offline-first — but point it at [Butterbase](https://butterbase.ai) and it grows real user accounts, cloud profile sync, and a **shared live feed** (posts, comments, likes land in Postgres and show up for every signed-in user):
+
+```bash
+npx @butterbase/cli login                            # paste your Butterbase API key (free tier works)
+npx @butterbase/cli apps create apex                 # note the app_... id it prints
+npx @butterbase/cli schema apply butterbase/schema.json
+cp .env.example .env                                 # then set VITE_BUTTERBASE_APP_ID=app_...
+```
+
+Sign in from **Settings → Cloud**. Without the env vars, the cloud card shows these setup steps and everything else behaves exactly as before.
+
 ## What's implemented (from the plan)
 
 | Plan section | Status |
