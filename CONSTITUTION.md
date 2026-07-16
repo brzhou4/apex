@@ -33,6 +33,12 @@ making predictions, resolving them honestly, logging counterexamples, and
 revising beliefs — never to having been right. The moment "being right"
 becomes the target, people stop taking informative risks.
 
+**The game may motivate exposure. It may never distort measurement.** The
+pet, the streak, the XP exist to buy repeated exposure to reality; the moment
+any reward depends on the *outcome* of a prediction rather than the *making*
+of one, the instrument is dead. This is the one asymmetry the whole app rests
+on.
+
 ## Article 4 — Every insight must expose provenance.
 
 Every conclusion the app presents answers three questions:
@@ -66,7 +72,48 @@ downstream link is an intermediate variable we hold uncertainly, not a
 marketing claim we assume). The instrument is only trustworthy if it is
 pointed at itself first.
 
+## Article 8 — Never claim more than the evidence supports.
+
+Findings are stated inside their envelope, never universalized. Not "sleep
+causes better predictions" but "within this population, under these
+conditions, we observed...". Three specific translations are forbidden and
+their honest forms required:
+- correlation is never dressed as cause;
+- an intermediate variable is never dressed as an outcome (calibration ≠
+  a better life until #004 says so);
+- a finding from users willing to self-preregister is never dressed as a
+  finding about people.
+
+The restraint is not a legal hedge. It is the product. People trust an
+instrument precisely because it refuses to overstate itself — the day APEX
+oversells one finding, every other number it has ever shown becomes suspect.
+
 ---
+
+## The norms (what the articles protect)
+
+The articles are law; the norms are the culture the law exists to protect.
+Code gets rewritten, phases complete, models change — what must survive is a
+handful of norms a contributor who never met the founders should absorb from
+this repo alone:
+
+1. **Predictions happen before reality.**
+2. **Being wrong is expected.**
+3. **Updating is admirable.** Status lives in the *revision*, not the result:
+   a careful, well-justified belief change outranks having been accurate. When
+   the social layer is built, it rewards the best update, never the best score.
+4. **Claims carry evidence.**
+5. **The company updates itself publicly.**
+
+Features merely instantiate norms. If a feature reinforces none of them, it
+does not belong — the same filter as "which article does this serve," in the
+language of culture instead of law.
+
+The objective these norms serve, as sharply as it can be put: APEX does not
+evaluate your knowledge (that is school) or your behavior (that is a
+productivity app). **It evaluates the quality of the internal model you use
+to predict yourself, and tries to improve it.** That is the unusual thing
+being built, and the sentence to hand a stranger who asks what APEX is.
 
 ## The protocol
 

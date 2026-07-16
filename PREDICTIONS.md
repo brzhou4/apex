@@ -6,6 +6,15 @@ and what result would count as failure. Resolutions get appended — including
 the wrong ones. **Never reward looking correct. Reward exposing yourself to
 correction.**
 
+**Standing limitation — self-selection (applies to every prediction below).**
+The population that will voluntarily and repeatedly confront evidence about
+itself is not the general population. So no finding here is about *people*;
+each is about *people willing to self-preregister*. Our first papers will
+carry that qualifier in the title, not the appendix — "among users who
+resolve N+ predictions..." Acknowledging the boundary is not a weakness of
+the claim; it is the only version of the claim that will replicate. (This is
+Article 8 applied to ourselves.)
+
 ---
 
 ## Prediction #001 — The protocol retains
