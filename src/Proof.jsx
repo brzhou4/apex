@@ -21,15 +21,20 @@ function fmtRemaining(ms) {
 // The modal blocks the screen for up to LOCK_CAP_MS; past that the recording
 // keeps running in a small badge so the app stays usable.
 export function ProofRecorder({ taskTitle, liveTiers, fixedMs, tierLabel, onConfirm }) {
-  const [phase, setPhase] = useState('starting') // starting | live | processing | error
+  const live = !!liveTiers
+  // Article 2 — commit before observation. Live sessions open with a
+  // preregistration step: predict your minutes before the camera rolls.
+  const [phase, setPhase] = useState(live ? 'predict' : 'starting') // predict | starting | live | processing | error
+  const [predictedMin, setPredictedMin] = useState('')
+  const [confidence, setConfidence] = useState(null) // % confident you'll hit at least that
   const [elapsed, setElapsed] = useState(0)
   const [errMsg, setErrMsg] = useState('')
   const videoRef = useRef(null)
   const sessionRef = useRef(null)
   const tickRef = useRef(null)
   const finishedRef = useRef(false)
+  const predictionRef = useRef(null)
 
-  const live = !!liveTiers
   const totalMs = live ? liveTiers[liveTiers.length - 1].threshold * 60000 : (fixedMs || DEFAULT_CAPTURE_MS)
   // You start at Bronze the moment the camera rolls — every rank above it
   // unlocks as its real-time threshold passes.
@@ -38,6 +43,7 @@ export function ProofRecorder({ taskTitle, liveTiers, fixedMs, tierLabel, onConf
     : null
 
   useEffect(() => {
+    if (phase === 'predict') return // camera waits for the commitment
     let cancelled = false
     const session = new ProofSession()
     sessionRef.current = session
@@ -59,7 +65,14 @@ export function ProofRecorder({ taskTitle, liveTiers, fixedMs, tierLabel, onConf
       session.release()
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [])
+  }, [phase === 'predict'])
+
+  function commitPrediction() {
+    const mins = Number(predictedMin)
+    if (!mins || mins <= 0) return
+    predictionRef.current = { predictedMin: mins, confidence: confidence ?? 50, ts: Date.now() }
+    setPhase('starting')
+  }
 
   const inBackground = phase === 'live' && totalMs > LOCK_CAP_MS && elapsed >= LOCK_CAP_MS
 
@@ -86,12 +99,17 @@ export function ProofRecorder({ taskTitle, liveTiers, fixedMs, tierLabel, onConf
     session.stopCamera()
     setPhase('processing')
     const finalTier = live ? Math.max(0, liveTiers.reduce((acc, t, i) => (session.elapsedMs() >= t.threshold * 60000 ? i : acc), 0)) : null
+    // Resolve the preregistered prediction against the verified clock —
+    // reality is the authority (Article 1), not self-report.
+    const resolution = predictionRef.current
+      ? { ...predictionRef.current, actualMin: Math.round((session.elapsedMs() / 60000) * 10) / 10, resolvedTs: Date.now() }
+      : null
     try {
       const { blob, thumbnail, sourceMs, outputMs } = await session.buildTimelapse()
       const id = `proof-${Date.now()}`
       await saveTimelapse(id, blob)
       session.release()
-      onConfirm({ id, thumbnail, sourceMs, outputMs }, finalTier)
+      onConfirm({ id, thumbnail, sourceMs, outputMs }, finalTier, resolution)
     } catch {
       setErrMsg('Could not build the timelapse on this device.')
       setPhase('error')
@@ -125,10 +143,55 @@ export function ProofRecorder({ taskTitle, liveTiers, fixedMs, tierLabel, onConf
   const pct = Math.min(100, (elapsed / totalMs) * 100)
   const nextIdx = live ? achievedIdx + 1 : null
 
+  if (phase === 'predict') {
+    return (
+      <div className="modal-backdrop">
+        <div className="modal card">
+          <h3><Ic src={IMGS.target} alt="🎯" size={20} /> {taskTitle}</h3>
+          <div className="predict-q">How many minutes do you honestly think you'll work?</div>
+          <input
+            type="number"
+            min="1"
+            autoFocus
+            placeholder="minutes"
+            value={predictedMin}
+            onChange={(e) => setPredictedMin(e.target.value)}
+            onKeyDown={(e) => e.key === 'Enter' && commitPrediction()}
+          />
+          <div className="sub" style={{ marginTop: 12, marginBottom: 6 }}>How confident are you? (optional)</div>
+          <div className="conf-row">
+            {[20, 50, 80, 95].map((c) => (
+              <button
+                key={c}
+                className={`conf-chip ${confidence === c ? 'on' : ''}`}
+                onClick={() => setConfidence(confidence === c ? null : c)}
+              >
+                {c}%
+              </button>
+            ))}
+          </div>
+          <button className="btn" disabled={!Number(predictedMin)} onClick={commitPrediction}>
+            Commit & start recording
+          </button>
+          <div className="sub" style={{ marginTop: 10, fontSize: 11, textAlign: 'center' }}>
+            Your prediction is locked before the camera rolls. Reality resolves it — not you, not the app.
+          </div>
+        </div>
+      </div>
+    )
+  }
+
   return (
     <div className="modal-backdrop">
       <div className="modal card">
         <h3><Ic src={IMGS.camera} alt="📸" size={20} /> {taskTitle}</h3>
+        {predictionRef.current && (
+          // Deliberately does NOT show the number: a visible target turns the
+          // forecast into a commitment device and contaminates the measurement.
+          <div className="sub" style={{ marginBottom: 4 }}>
+            <Ic src={IMGS.lock} alt="🔒" size={13} /> Prediction locked — reality reveals it when you finish
+          </div>
+        )}
         <div className="sub" style={{ marginBottom: 10 }}>
           {live
             ? 'Camera on, work on. Every rank unlocks as real time passes — bank your rank or push for APEX.'

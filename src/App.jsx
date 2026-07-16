@@ -8,6 +8,7 @@ import {
   petStage, PET_STAGES, PET_COLORS, TITLE_ACHIEVEMENTS, earnedTitleIds, rankScoreBonus, leagueName,
   TITLE_COLORS,
   rollForward, addDays, daysBetween, STREAK_MILESTONES, weeklyInsight,
+  CALIBRATION_UNLOCK, predictionStats,
   buildDuel, generateHealthSnapshot,
   SHOP_ITEMS, AVATAR_COLORS, EXCLUSIVE_TITLES, IMGS, GOAL_IMGS,
   SOCIAL_USERS, seedFeed, lockedBoard,
@@ -681,6 +682,7 @@ function Dashboard({ state, setState }) {
   const [profileEditSignal, setProfileEditSignal] = useState(0) // bumping it opens the profile editor
   const [lastTab, setLastTab] = useState('home') // where to return from the profile
   const [streakSplash, setStreakSplash] = useState(null)
+  const [receipt, setReceipt] = useState(null) // the just-resolved prediction
   const swipeRef = useRef(null)
 
   // Opening your profile remembers where you came from.
@@ -699,7 +701,26 @@ function Dashboard({ state, setState }) {
     if (!state.tierLog) setState((s) => ({ ...s, tierLog: [] }))
     if (!state.social) setState((s) => ({ ...s, social: { following: [], posts: seedFeed() } }))
     if (!state.pet) setState((s) => ({ ...s, pet: { ...DEFAULT_PET }, fruits: s.fruits || 0 }))
-  }, [state.duel, state.proofLog, state.tierLog, state.social, state.pet, setState])
+    if (!state.predictions) setState((s) => ({ ...s, predictions: [] }))
+  }, [state.duel, state.proofLog, state.tierLog, state.social, state.pet, state.predictions, setState])
+
+  // The core protocol: store a resolved prediction (preregistered before the
+  // camera rolled, resolved by the verified clock). XP rewards the exposure —
+  // making and honestly resolving the prediction — never its accuracy.
+  function recordPrediction(taskId, taskTitle, resolution) {
+    const task = state.tasks.find((t) => t.id === taskId)
+    setState((s) => ({
+      ...s,
+      xp: s.xp + 5,
+      predictions: [...(s.predictions || []), {
+        id: `pred-${Date.now()}`,
+        taskId,
+        taskTitle,
+        pillar: task?.pillar || 'OTHER',
+        ...resolution,
+      }],
+    }))
+  }
 
   // Mirror the public bits of your profile into Butterbase (no-op unless the
   // backend is configured AND you're signed in — see Settings → Cloud).
@@ -1050,13 +1071,59 @@ function Dashboard({ state, setState }) {
           tierLabel={pendingLog.tierLabel}
           liveTiers={pendingLog.live ? pendingLog.liveTiers : undefined}
           fixedMs={pendingLog.fixedMs}
-          onConfirm={(proof, finalTier) => {
+          onConfirm={(proof, finalTier, resolution) => {
             const tierIndex = pendingLog.live ? finalTier : pendingLog.tierIndex
             if (tierIndex != null) logTier(pendingLog.taskId, tierIndex, proof)
+            // Only a verified session resolves a prediction (Article 1); a
+            // camera failure voids it rather than trusting self-report.
+            if (resolution && proof) {
+              recordPrediction(pendingLog.taskId, pendingLog.taskTitle, resolution)
+              setReceipt({ ...resolution, taskTitle: pendingLog.taskTitle })
+            }
             setPendingLog(null)
           }}
         />
       )}
+
+      {receipt && <PredictionReceipt receipt={receipt} onDone={() => setReceipt(null)} />}
+    </div>
+  )
+}
+
+/* ---------------- Prediction receipt ---------------- */
+
+// The face of the protocol: prediction vs reality, no interpretation, no
+// judgment. The user needed a receipt, not an insight. XP already flowed
+// for the exposure itself — being wrong costs nothing, hiding would have.
+function PredictionReceipt({ receipt, onDone }) {
+  const diff = Math.round((receipt.actualMin - receipt.predictedMin) * 10) / 10
+  return (
+    <div className="modal-backdrop" onClick={onDone}>
+      <div className="modal card receipt-card" onClick={(e) => e.stopPropagation()}>
+        <h3><Ic src={IMGS.target} alt="🎯" size={20} /> Receipt · {receipt.taskTitle}</h3>
+        <div className="receipt-grid">
+          <div className="receipt-cell">
+            <span className="receipt-label">Prediction</span>
+            <span className="receipt-value">{receipt.predictedMin}m</span>
+            {receipt.confidence != null && <span className="receipt-conf">@ {receipt.confidence}%</span>}
+          </div>
+          <div className="receipt-cell">
+            <span className="receipt-label">Reality</span>
+            <span className="receipt-value">{receipt.actualMin}m</span>
+            <span className="receipt-conf">camera-verified</span>
+          </div>
+          <div className="receipt-cell">
+            <span className="receipt-label">Difference</span>
+            <span className={`receipt-value ${diff >= 0 ? 'receipt-pos' : 'receipt-neg'}`}>
+              {diff >= 0 ? '+' : ''}{diff}m
+            </span>
+          </div>
+        </div>
+        <div className="sub" style={{ textAlign: 'center', marginTop: 12 }}>
+          +5 XP for the exposure — not for being right.
+        </div>
+        <button className="btn ghost" onClick={onDone} style={{ marginTop: 10 }}>Noted</button>
+      </div>
     </div>
   )
 }
@@ -2993,6 +3060,57 @@ function Profile({ state, setState, flash, onReBaseline, onSyncHealth, onBack, b
           Re-take baseline
         </button>
       </div>
+
+      {/* Judgment — receipts immediately, calibration only when the evidence
+          is big enough to mean something (CONSTITUTION.md). */}
+      {(() => {
+        const preds = state.predictions || []
+        const resolved = preds.filter((p) => p.actualMin != null)
+        const stats = predictionStats(preds)
+        return (
+          <div className="card">
+            <h3><Ic src={IMGS.target} alt="🎯" size={20} /> Judgment</h3>
+            {resolved.length === 0 ? (
+              <div className="sub">
+                Every recorded session starts with a prediction. Reality resolves it — your receipts land here.
+              </div>
+            ) : (
+              [...resolved].slice(-5).reverse().map((p) => {
+                const diff = Math.round((p.actualMin - p.predictedMin) * 10) / 10
+                return (
+                  <div className="receipt-row" key={p.id}>
+                    <span className="rr-task">{p.taskTitle}</span>
+                    <span className="rr-nums">{p.predictedMin}m → {p.actualMin}m</span>
+                    <span className={`rr-diff ${diff >= 0 ? 'receipt-pos' : 'receipt-neg'}`}>{diff >= 0 ? '+' : ''}{diff}m</span>
+                  </div>
+                )
+              })
+            )}
+
+            {stats.n < CALIBRATION_UNLOCK ? (
+              <>
+                <div className="score-row" style={{ marginTop: 12 }}>
+                  <span>Calibration</span><span>{stats.n}/{CALIBRATION_UNLOCK} resolved</span>
+                </div>
+                <div className="bar"><i style={{ width: `${(stats.n / CALIBRATION_UNLOCK) * 100}%`, background: 'var(--intellect)' }} /></div>
+                <div className="sub" style={{ marginTop: 8 }}>
+                  We don’t know yet. Calibration unlocks at {CALIBRATION_UNLOCK} resolved predictions — enough evidence to mean something.
+                </div>
+              </>
+            ) : (
+              <>
+                <div className="stat-grid" style={{ marginTop: 12 }}>
+                  <Stat value={`${stats.meanAbsErrPct}%`} label="avg prediction error" />
+                  <Stat value={stats.brier} label="Brier score (lower = better)" />
+                </div>
+                <div className="sub" style={{ marginTop: 8 }}>
+                  Built from {stats.n} camera-verified resolutions. Still a small sample — treat as weak evidence. It sharpens as you keep predicting.
+                </div>
+              </>
+            )}
+          </div>
+        )
+      })()}
 
       <div className="card">
         <h3><Ic src={IMGS.phone} alt="📲" size={20} /> Health Sync</h3>

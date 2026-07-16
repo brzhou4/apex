@@ -796,6 +796,42 @@ export function earnedTitleIds(state) {
   return TITLE_ACHIEVEMENTS.filter((t) => t.check(state)).map((t) => t.id)
 }
 
+// --- Predictions — the core protocol (see CONSTITUTION.md) ---
+// Commit before reality. Compare after reality. Learn from the difference.
+// Calibration stays LOCKED until enough evidence exists: "we don't know yet"
+// is a feature, not a failure state.
+export const CALIBRATION_UNLOCK = 30
+
+export function predictionStats(predictions = []) {
+  const resolved = predictions.filter((p) => p.actualMin != null && p.predictedMin > 0)
+  const n = resolved.length
+  if (n === 0) return { n: 0, meanAbsErrPct: null, brier: null, byPillar: {} }
+  let errSum = 0
+  let brierSum = 0
+  const byPillar = {}
+  resolved.forEach((p) => {
+    const errPct = Math.abs(p.actualMin - p.predictedMin) / p.predictedMin
+    errSum += errPct
+    // Confidence was "I'll do at least what I predicted" — proper score, so
+    // safe low-confidence guessing earns nothing (Article 3 / anti-Goodhart).
+    const hit = p.actualMin >= p.predictedMin ? 1 : 0
+    brierSum += Math.pow((p.confidence ?? 50) / 100 - hit, 2)
+    const key = p.pillar || 'OTHER'
+    const b = byPillar[key] || (byPillar[key] = { n: 0, errSum: 0 })
+    b.n += 1
+    b.errSum += errPct
+  })
+  const pillars = Object.fromEntries(
+    Object.entries(byPillar).map(([k, v]) => [k, { n: v.n, meanAbsErrPct: Math.round((v.errSum / v.n) * 100) }])
+  )
+  return {
+    n,
+    meanAbsErrPct: Math.round((errSum / n) * 100),
+    brier: Math.round((brierSum / n) * 1000) / 1000,
+    byPillar: pillars,
+  }
+}
+
 // --- Rank grind → Human Score ---
 // Every logged rank nudges your Human Score up a little (0.4/tier step,
 // capped at +40) — proof that showing up at higher intensity compounds.
