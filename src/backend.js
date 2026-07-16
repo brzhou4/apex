@@ -197,6 +197,15 @@ export async function syncPredictionOutcome(localId, { status, actualMin = null 
   }).eq('id', row.id), 'prediction outcome')
 }
 
+export async function syncPredictionReason(localId, reason) {
+  const user = await cloudUser()
+  if (!user) return
+  const found = await run(bb.from('predictions').select('id').eq('local_id', localId).limit(1), 'prediction reason lookup')
+  const row = firstRow(found)
+  if (!row?.id) return
+  await run(bb.from('predictions').update({ reason }).eq('id', row.id), 'prediction reason')
+}
+
 export async function setCloudLike(cloudPostId, liked, newCount) {
   const user = await cloudUser()
   if (!user) return

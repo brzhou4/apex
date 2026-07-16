@@ -991,3 +991,9 @@ input.invalid { border-color: #ef4444 !important; }
 .rr-task { flex: 1; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; color: var(--text); }
 .rr-nums { color: var(--muted); white-space: nowrap; }
 .rr-diff { font-weight: 900; white-space: nowrap; }
+
+/* Receipt attribution — the optional "why the gap?" evidence tags */
+.receipt-why { margin-top: 14px; font-weight: 800; font-size: 13px; }
+.receipt-why-opt { color: var(--muted); font-weight: 700; font-size: 11px; }
+.receipt-reasons { flex-wrap: wrap; margin-top: 8px; gap: 6px; }
+.receipt-reasons .conf-chip { flex: 0 1 auto; padding: 8px 12px; font-size: 12px; }

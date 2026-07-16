@@ -29,7 +29,7 @@ import { parseDreamGoalRemote, planGoalRemote } from './api.js'
 import {
   backendEnabled, cloudUser, cloudSignIn, cloudSignUp, cloudSignOut, syncProfile,
   fetchCloudPosts, fetchCloudComments, publishCloudPost, addCloudComment, setCloudLike,
-  syncPredictionCommit, syncPredictionOutcome,
+  syncPredictionCommit, syncPredictionOutcome, syncPredictionReason,
 } from './backend.js'
 import { ProofRecorder, TimelapseGallery, FocusDuel } from './Proof.jsx'
 import { DEFAULT_CAPTURE_MS, loadTimelapse } from './proof.js'
@@ -758,6 +758,19 @@ function Dashboard({ state, setState }) {
     if (backendEnabled) syncPredictionOutcome(id, { status, actualMin }).catch(() => {})
   }
 
+  // Optional attribution on a resolved prediction — WHY the gap. Evidence for
+  // the Observe step, never advice, and never XP (a reason tag is too cheap to
+  // reward without inviting gaming). It's captured now because it can't be
+  // recovered later: nobody remembers why a session ran long a month on.
+  function tagPredictionReason(id, reason) {
+    if (!id) return
+    setState((s) => ({
+      ...s,
+      predictions: (s.predictions || []).map((p) => (p.id === id ? { ...p, reason } : p)),
+    }))
+    if (backendEnabled) syncPredictionReason(id, reason).catch(() => {})
+  }
+
   // Mirror the public bits of your profile into Butterbase (no-op unless the
   // backend is configured AND you're signed in — see Settings → Cloud).
   useEffect(() => {
@@ -1117,7 +1130,7 @@ function Dashboard({ state, setState }) {
             // camera failure voids it rather than trusting self-report.
             if (resolution && proof) {
               settlePrediction(pendingPredIdRef.current, 'resolved', resolution.actualMin)
-              setReceipt({ ...resolution, taskTitle: pendingLog.taskTitle })
+              setReceipt({ ...resolution, taskTitle: pendingLog.taskTitle, predId: pendingPredIdRef.current })
             } else if (pendingPredIdRef.current) {
               settlePrediction(pendingPredIdRef.current, 'voided')
             }
@@ -1127,7 +1140,13 @@ function Dashboard({ state, setState }) {
         />
       )}
 
-      {receipt && <PredictionReceipt receipt={receipt} onDone={() => setReceipt(null)} />}
+      {receipt && (
+        <PredictionReceipt
+          receipt={receipt}
+          onReason={(reason) => tagPredictionReason(receipt.predId, reason)}
+          onDone={() => setReceipt(null)}
+        />
+      )}
     </div>
   )
 }
@@ -1137,7 +1156,11 @@ function Dashboard({ state, setState }) {
 // The face of the protocol: prediction vs reality, no interpretation, no
 // judgment. The user needed a receipt, not an insight. XP already flowed
 // for the exposure itself — being wrong costs nothing, hiding would have.
-function PredictionReceipt({ receipt, onDone }) {
+// One optional question — WHY the gap — captured as evidence, never advice.
+const RECEIPT_REASONS = ['Interrupted', 'Harder than expected', 'Distracted', 'Finished early', 'About right']
+
+function PredictionReceipt({ receipt, onReason, onDone }) {
+  const [reason, setReason] = useState(null)
   const diff = Math.round((receipt.actualMin - receipt.predictedMin) * 10) / 10
   return (
     <div className="modal-backdrop" onClick={onDone}>
@@ -1161,6 +1184,20 @@ function PredictionReceipt({ receipt, onDone }) {
             </span>
           </div>
         </div>
+
+        <div className="receipt-why">Why the gap? <span className="receipt-why-opt">optional</span></div>
+        <div className="conf-row receipt-reasons">
+          {RECEIPT_REASONS.map((r) => (
+            <button
+              key={r}
+              className={`conf-chip ${reason === r ? 'on' : ''}`}
+              onClick={() => { const next = reason === r ? null : r; setReason(next); onReason(next) }}
+            >
+              {r}
+            </button>
+          ))}
+        </div>
+
         <div className="sub" style={{ textAlign: 'center', marginTop: 12 }}>
           +5 XP for the exposure — not for being right.
         </div>
