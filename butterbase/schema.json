@@ -124,6 +124,54 @@
           "default": "now()"
         }
       }
+    },
+    "predictions": {
+      "columns": {
+        "id": {
+          "type": "uuid",
+          "default": "gen_random_uuid()",
+          "primaryKey": true
+        },
+        "local_id": {
+          "type": "text",
+          "nullable": false
+        },
+        "user_id": {
+          "type": "uuid",
+          "nullable": false
+        },
+        "task_title": {
+          "type": "text"
+        },
+        "pillar": {
+          "type": "text"
+        },
+        "predicted_min": {
+          "type": "integer",
+          "nullable": false
+        },
+        "confidence": {
+          "type": "integer"
+        },
+        "actual_min": {
+          "type": "real"
+        },
+        "status": {
+          "type": "text",
+          "default": "'committed'"
+        },
+        "camera_verified": {
+          "type": "boolean",
+          "default": "false"
+        },
+        "created_at": {
+          "type": "timestamptz",
+          "default": "now()"
+        },
+        "resolved_at": {
+          "type": "timestamptz"
+        }
+      }
     }
   }
 }

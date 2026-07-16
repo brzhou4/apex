@@ -20,7 +20,7 @@ function fmtRemaining(ms) {
 // fixedMs + tierLabel instead of liveTiers.
 // The modal blocks the screen for up to LOCK_CAP_MS; past that the recording
 // keeps running in a small badge so the app stays usable.
-export function ProofRecorder({ taskTitle, liveTiers, fixedMs, tierLabel, onConfirm }) {
+export function ProofRecorder({ taskTitle, liveTiers, fixedMs, tierLabel, onConfirm, onCommit }) {
   const live = !!liveTiers
   // Article 2 — commit before observation. Live sessions open with a
   // preregistration step: predict your minutes before the camera rolls.
@@ -68,9 +68,12 @@ export function ProofRecorder({ taskTitle, liveTiers, fixedMs, tierLabel, onConf
   }, [phase === 'predict'])
 
   function commitPrediction() {
-    const mins = Number(predictedMin)
-    if (!mins || mins <= 0) return
+    // Believable minutes only: whole numbers, 1–600 (a 10-hour session is
+    // already heroic; a 5000-minute one is a typo).
+    const mins = Math.round(Number(predictedMin))
+    if (!mins || mins < 1 || mins > 600) return
     predictionRef.current = { predictedMin: mins, confidence: confidence ?? 50, ts: Date.now() }
+    onCommit?.(predictionRef.current)
     setPhase('starting')
   }
 
@@ -170,9 +173,16 @@ export function ProofRecorder({ taskTitle, liveTiers, fixedMs, tierLabel, onConf
               </button>
             ))}
           </div>
-          <button className="btn" disabled={!Number(predictedMin)} onClick={commitPrediction}>
+          <button
+            className="btn"
+            disabled={!(Math.round(Number(predictedMin)) >= 1 && Math.round(Number(predictedMin)) <= 600)}
+            onClick={commitPrediction}
+          >
             Commit & start recording
           </button>
+          {Number(predictedMin) > 600 && (
+            <div className="field-error" style={{ textAlign: 'center', marginTop: 6 }}>Keep it believable — 600 minutes max.</div>
+          )}
           <div className="sub" style={{ marginTop: 10, fontSize: 11, textAlign: 'center' }}>
             Your prediction is locked before the camera rolls. Reality resolves it — not you, not the app.
           </div>

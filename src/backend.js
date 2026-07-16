@@ -162,6 +162,41 @@ export async function addCloudComment(state, cloudPostId, text) {
   }), 'comment insert')
 }
 
+// --- Predictions (the core protocol) ---
+// The full lifecycle mirrors to Postgres so resolution/abandonment rates are
+// measurable across users. Local state stays the source of truth; every call
+// is fire-and-forget. Rows are keyed by local_id so a later status change can
+// find its cloud row without the client storing cloud ids.
+
+export async function syncPredictionCommit(row) {
+  const user = await cloudUser()
+  if (!user) return
+  await run(bb.from('predictions').insert({
+    local_id: row.id,
+    user_id: user.id,
+    task_title: row.taskTitle || '',
+    pillar: row.pillar || 'OTHER',
+    predicted_min: row.predictedMin,
+    confidence: row.confidence ?? null,
+    status: 'committed',
+    camera_verified: false,
+  }), 'prediction commit')
+}
+
+export async function syncPredictionOutcome(localId, { status, actualMin = null }) {
+  const user = await cloudUser()
+  if (!user) return
+  const found = await run(bb.from('predictions').select('id').eq('local_id', localId).limit(1), 'prediction lookup')
+  const row = firstRow(found)
+  if (!row?.id) return
+  await run(bb.from('predictions').update({
+    status,
+    actual_min: actualMin,
+    camera_verified: status === 'resolved',
+    resolved_at: new Date().toISOString(),
+  }).eq('id', row.id), 'prediction outcome')
+}
+
 export async function setCloudLike(cloudPostId, liked, newCount) {
   const user = await cloudUser()
   if (!user) return

@@ -29,6 +29,7 @@ import { parseDreamGoalRemote, planGoalRemote } from './api.js'
 import {
   backendEnabled, cloudUser, cloudSignIn, cloudSignUp, cloudSignOut, syncProfile,
   fetchCloudPosts, fetchCloudComments, publishCloudPost, addCloudComment, setCloudLike,
+  syncPredictionCommit, syncPredictionOutcome,
 } from './backend.js'
 import { ProofRecorder, TimelapseGallery, FocusDuel } from './Proof.jsx'
 import { DEFAULT_CAPTURE_MS, loadTimelapse } from './proof.js'
@@ -704,22 +705,57 @@ function Dashboard({ state, setState }) {
     if (!state.predictions) setState((s) => ({ ...s, predictions: [] }))
   }, [state.duel, state.proofLog, state.tierLog, state.social, state.pet, state.predictions, setState])
 
-  // The core protocol: store a resolved prediction (preregistered before the
-  // camera rolled, resolved by the verified clock). XP rewards the exposure —
-  // making and honestly resolving the prediction — never its accuracy.
-  function recordPrediction(taskId, taskTitle, resolution) {
-    const task = state.tasks.find((t) => t.id === taskId)
+  // MOUNT-ONLY abandonment sweep. No recording survives an app load, so any
+  // prediction still 'committed' when the app opens was walked away from —
+  // an abandonment, the funnel's most honest signal. This must never run
+  // mid-session (a deps-driven version would abandon the ACTIVE prediction
+  // the moment it's committed).
+  useEffect(() => {
+    const stale = (state.predictions || []).filter((p) => p.status === 'committed')
+    if (stale.length === 0) return
     setState((s) => ({
       ...s,
-      xp: s.xp + 5,
-      predictions: [...(s.predictions || []), {
-        id: `pred-${Date.now()}`,
-        taskId,
-        taskTitle,
-        pillar: task?.pillar || 'OTHER',
-        ...resolution,
-      }],
+      predictions: (s.predictions || []).map((p) => (p.status === 'committed' ? { ...p, status: 'abandoned', resolvedTs: Date.now() } : p)),
     }))
+    if (backendEnabled) {
+      stale.forEach((p) => syncPredictionOutcome(p.id, { status: 'abandoned' }).catch(() => {}))
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [])
+
+  // The core protocol, full lifecycle. The row is created the moment the
+  // user COMMITS — before the camera rolls — so every prediction ends as
+  // exactly one of: resolved (verified), voided (camera failed — instrument
+  // problem), or abandoned (user bailed — behavior signal). XP rewards the
+  // exposure of an honest resolution, never its accuracy.
+  const pendingPredIdRef = useRef(null)
+
+  function commitPredictionRow(taskId, taskTitle, pred) {
+    const task = state.tasks.find((t) => t.id === taskId)
+    const id = `pred-${Date.now()}-${Math.random().toString(36).slice(2, 7)}`
+    const row = {
+      id, taskId, taskTitle,
+      pillar: task?.pillar || 'OTHER',
+      predictedMin: pred.predictedMin,
+      confidence: pred.confidence,
+      ts: pred.ts,
+      status: 'committed',
+      actualMin: null,
+    }
+    setState((s) => ({ ...s, predictions: [...(s.predictions || []), row] }))
+    if (backendEnabled) syncPredictionCommit(row).catch(() => {})
+    return id
+  }
+
+  function settlePrediction(id, status, actualMin = null) {
+    if (!id) return
+    setState((s) => ({
+      ...s,
+      xp: status === 'resolved' ? s.xp + 5 : s.xp,
+      predictions: (s.predictions || []).map((p) =>
+        p.id === id ? { ...p, status, actualMin, resolvedTs: Date.now() } : p),
+    }))
+    if (backendEnabled) syncPredictionOutcome(id, { status, actualMin }).catch(() => {})
   }
 
   // Mirror the public bits of your profile into Butterbase (no-op unless the
@@ -1071,15 +1107,21 @@ function Dashboard({ state, setState }) {
           tierLabel={pendingLog.tierLabel}
           liveTiers={pendingLog.live ? pendingLog.liveTiers : undefined}
           fixedMs={pendingLog.fixedMs}
+          onCommit={(pred) => {
+            pendingPredIdRef.current = commitPredictionRow(pendingLog.taskId, pendingLog.taskTitle, pred)
+          }}
           onConfirm={(proof, finalTier, resolution) => {
             const tierIndex = pendingLog.live ? finalTier : pendingLog.tierIndex
             if (tierIndex != null) logTier(pendingLog.taskId, tierIndex, proof)
             // Only a verified session resolves a prediction (Article 1); a
             // camera failure voids it rather than trusting self-report.
             if (resolution && proof) {
-              recordPrediction(pendingLog.taskId, pendingLog.taskTitle, resolution)
+              settlePrediction(pendingPredIdRef.current, 'resolved', resolution.actualMin)
               setReceipt({ ...resolution, taskTitle: pendingLog.taskTitle })
+            } else if (pendingPredIdRef.current) {
+              settlePrediction(pendingPredIdRef.current, 'voided')
             }
+            pendingPredIdRef.current = null
             setPendingLog(null)
           }}
         />
@@ -3065,11 +3107,18 @@ function Profile({ state, setState, flash, onReBaseline, onSyncHealth, onBack, b
           is big enough to mean something (CONSTITUTION.md). */}
       {(() => {
         const preds = state.predictions || []
-        const resolved = preds.filter((p) => p.actualMin != null)
+        const resolved = preds.filter((p) => p.status === 'resolved' || (p.status == null && p.actualMin != null))
+        const voided = preds.filter((p) => p.status === 'voided').length
+        const abandoned = preds.filter((p) => p.status === 'abandoned').length
         const stats = predictionStats(preds)
         return (
           <div className="card">
             <h3><Ic src={IMGS.target} alt="🎯" size={20} /> Judgment</h3>
+            {(voided > 0 || abandoned > 0) && (
+              <div className="sub" style={{ marginBottom: 8, fontSize: 11 }}>
+                {resolved.length} resolved{voided > 0 ? ` · ${voided} voided (camera)` : ''}{abandoned > 0 ? ` · ${abandoned} abandoned` : ''} — abandonments count too; walking away is data.
+              </div>
+            )}
             {resolved.length === 0 ? (
               <div className="sub">
                 Every recorded session starts with a prediction. Reality resolves it — your receipts land here.

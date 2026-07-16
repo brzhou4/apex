@@ -45,6 +45,17 @@ cp .env.example .env                                 # then set VITE_BUTTERBASE_
 
 Sign in from **Settings → Cloud**. Without the env vars, the cloud card shows these setup steps and everything else behaves exactly as before.
 
+## What APEX records (and why)
+
+APEX is an instrument, so it discloses its own measurements. Locally (and in
+Butterbase when you're signed in), the app records the full lifecycle of every
+prediction: what you predicted, your confidence, when you committed, and how
+it ended — **resolved** (camera-verified), **voided** (camera failure — an
+instrument problem, never blamed on you), or **abandoned** (you walked away —
+which is honest data too). The headline metric is the *resolution rate*: no
+resolution, no learning. Nothing is sold, nothing feeds ads, and the
+preregistered claims this data will test live in [PREDICTIONS.md](PREDICTIONS.md).
+
 ## What's implemented (from the plan)
 
 | Plan section | Status |
