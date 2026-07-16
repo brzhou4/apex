@@ -9,7 +9,9 @@ The company is an experiment. The hypothesis under test:
 > People become better decision-makers when they repeatedly preregister
 > predictions about their own behavior and compare them against reality.
 
-Every feature must survive all six articles. If it violates one, it doesn't get built.
+Every feature must survive all seven articles. If it violates one, it doesn't
+get built. Every pull request answers one question: **which article does this
+serve?** If the answer is "none," it closes.
 
 ---
 
@@ -52,6 +54,17 @@ flagship claim — "users become measurably better-calibrated forecasters of
 their own behavior" — is itself a preregistered hypothesis, defended with
 held-out transfer domains and cohort analysis, not survivorship-biased
 on-app improvement.
+
+## Article 7 — Symmetry: never ask of the user what the company won't do itself.
+
+APEX never asks users to practice an epistemic behavior it refuses to
+practice. If users preregister, APEX preregisters (PREDICTIONS.md). If users
+expose uncertainty, APEX exposes uncertainty. If users update beliefs when
+reality disagrees, APEX publishes its revisions — including the belief that
+better calibration leads anywhere good at all (see PREDICTIONS.md #004: that
+downstream link is an intermediate variable we hold uncertainly, not a
+marketing claim we assume). The instrument is only trustworthy if it is
+pointed at itself first.
 
 ---
 

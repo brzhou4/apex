@@ -79,3 +79,36 @@ effects. Later prediction types (accuracy counts, week-horizon forecasts)
 will be less contaminated.
 
 **Resolution:** *unresolved — awaiting data.*
+
+---
+
+## Prediction #004 — Calibration is worth improving (the hardest one)
+
+**Registered:** 2026-07-16. Registered *because* we don't know the answer —
+Article 7 forbids us from marketing a benefit we haven't earned.
+
+**The open question:** Suppose the app works and users become better
+calibrated about their own behavior. **So what?** Calibration is an
+*intermediate* variable. Whether it causes anything people actually want —
+higher grades, shipped projects, less burnout, better decisions — is
+completely unestablished. We will not claim it does until we have evidence.
+
+**Claim (held weakly):** Among users in the top quartile of calibration
+improvement, self-reported goal attainment at 6 months will exceed the
+bottom quartile by a margin that survives controlling for baseline
+conscientiousness and usage intensity.
+
+**Confidence:** 40% — deliberately below a coin flip. We think the link is
+plausible, not likely, and we'd rather be surprised than vindicated.
+
+**Failure condition:** No gap, or a gap that vanishes under controls →
+calibration is a curiosity, not a lever, and APEX's mission statement is
+wrong about *why* it matters. We would rewrite the mission, not bury the
+result.
+
+**Why this is registered at all:** Because the temptation — the one that
+kills honest products — is to quietly assume the intermediate variable is the
+outcome. "Better calibrated" starts sounding like "better," and nobody checks.
+This entry exists so that someday someone must check.
+
+**Resolution:** *unresolved — years out. The most important row in this file.*
