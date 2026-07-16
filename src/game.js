@@ -802,6 +802,35 @@ export function earnedTitleIds(state) {
 // is a feature, not a failure state.
 export const CALIBRATION_UNLOCK = 30
 
+// Evidence Review — summarize the resolved predictions not yet reviewed.
+// Raw evidence only: count, average miss, over/under bias, the biggest
+// surprise, the most common reason. NO trend, NO pattern, NO interpretation —
+// those gate at 30 (CONSTITUTION.md). Triggered by evidence accumulated, not
+// by the calendar, so it can't become a "don't break the chain" obligation.
+export const REVIEW_THRESHOLD = 3
+
+export function reviewEvidence(predictions = [], sinceTs = 0) {
+  const fresh = predictions.filter(
+    (p) => p.status === 'resolved' && p.actualMin != null && (p.resolvedTs || p.ts || 0) > sinceTs
+  )
+  if (fresh.length === 0) return { n: 0 }
+  const diffs = fresh.map((p) => p.actualMin - p.predictedMin)
+  const avgAbs = Math.round((diffs.reduce((s, d) => s + Math.abs(d), 0) / fresh.length) * 10) / 10
+  const signed = Math.round((diffs.reduce((s, d) => s + d, 0) / fresh.length) * 10) / 10
+  let big = fresh[0], bigMiss = Math.abs(diffs[0])
+  fresh.forEach((p) => { const m = Math.abs(p.actualMin - p.predictedMin); if (m > bigMiss) { big = p; bigMiss = m } })
+  const counts = {}
+  fresh.forEach((p) => { if (p.reason) counts[p.reason] = (counts[p.reason] || 0) + 1 })
+  const topReason = Object.entries(counts).sort((a, b) => b[1] - a[1])[0]?.[0] || null
+  return {
+    n: fresh.length,
+    avgAbs,
+    signed,
+    biggest: { task: big.taskTitle, predicted: big.predictedMin, actual: big.actualMin },
+    topReason,
+  }
+}
+
 export function predictionStats(predictions = []) {
   const resolved = predictions.filter((p) => p.actualMin != null && p.predictedMin > 0)
   const n = resolved.length

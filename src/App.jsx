@@ -8,7 +8,7 @@ import {
   petStage, PET_STAGES, PET_COLORS, TITLE_ACHIEVEMENTS, earnedTitleIds, rankScoreBonus, leagueName,
   TITLE_COLORS,
   rollForward, addDays, daysBetween, STREAK_MILESTONES, weeklyInsight,
-  CALIBRATION_UNLOCK, predictionStats,
+  CALIBRATION_UNLOCK, predictionStats, REVIEW_THRESHOLD, reviewEvidence,
   buildDuel, generateHealthSnapshot,
   SHOP_ITEMS, AVATAR_COLORS, EXCLUSIVE_TITLES, IMGS, GOAL_IMGS,
   SOCIAL_USERS, seedFeed, lockedBoard,
@@ -684,6 +684,7 @@ function Dashboard({ state, setState }) {
   const [lastTab, setLastTab] = useState('home') // where to return from the profile
   const [streakSplash, setStreakSplash] = useState(null)
   const [receipt, setReceipt] = useState(null) // the just-resolved prediction
+  const [reviewing, setReviewing] = useState(false)
   const swipeRef = useRef(null)
 
   // Opening your profile remembers where you came from.
@@ -703,7 +704,8 @@ function Dashboard({ state, setState }) {
     if (!state.social) setState((s) => ({ ...s, social: { following: [], posts: seedFeed() } }))
     if (!state.pet) setState((s) => ({ ...s, pet: { ...DEFAULT_PET }, fruits: s.fruits || 0 }))
     if (!state.predictions) setState((s) => ({ ...s, predictions: [] }))
-  }, [state.duel, state.proofLog, state.tierLog, state.social, state.pet, state.predictions, setState])
+    if (!state.reviews) setState((s) => ({ ...s, reviews: [], lastReviewTs: 0 }))
+  }, [state.duel, state.proofLog, state.tierLog, state.social, state.pet, state.predictions, state.reviews, setState])
 
   // MOUNT-ONLY abandonment sweep. No recording survives an app load, so any
   // prediction still 'committed' when the app opens was walked away from —
@@ -769,6 +771,22 @@ function Dashboard({ state, setState }) {
       predictions: (s.predictions || []).map((p) => (p.id === id ? { ...p, reason } : p)),
     }))
     if (backendEnabled) syncPredictionReason(id, reason).catch(() => {})
+  }
+
+  // Close the loop's Improve step: after enough new evidence, one forced
+  // commitment — "what will you change?" — stored so next review can ask
+  // whether you did. XP rewards the reflective commitment, never an outcome.
+  function saveReview(change) {
+    const text = (change || '').trim()
+    if (text.length < 8) return
+    setState((s) => ({
+      ...s,
+      xp: s.xp + 10,
+      lastReviewTs: Date.now(),
+      reviews: [...(s.reviews || []), { ts: Date.now(), change: text }],
+    }))
+    setReviewing(false)
+    flash(<>Review saved — commitment logged <Ic src={IMGS.target} alt="" size={14} /></>)
   }
 
   // Mirror the public bits of your profile into Butterbase (no-op unless the
@@ -1033,6 +1051,20 @@ function Dashboard({ state, setState }) {
               </div>
               <span className="ls-xp">{lvl.xpInto}/{lvl.xpNeeded}<br />XP</span>
             </div>
+            {(() => {
+              const ev = reviewEvidence(state.predictions, state.lastReviewTs || 0)
+              if (ev.n < REVIEW_THRESHOLD) return null
+              return (
+                <div className="card review-prompt" onClick={() => setReviewing(true)}>
+                  <Ic src={IMGS.target} alt="🎯" size={26} />
+                  <div className="grow">
+                    <div className="tt">Evidence Review ready</div>
+                    <div className="meta">{ev.n} resolved predictions since your last review — see what reality said.</div>
+                  </div>
+                  <span className="link">Review →</span>
+                </div>
+              )
+            })()}
             {state.tasks.map((t) => (
               <TaskBox key={t.id} task={t} onStart={startTask} onLog={requestLog} onRemove={t.custom ? removeTask : null} />
             ))}
@@ -1147,6 +1179,15 @@ function Dashboard({ state, setState }) {
           onDone={() => setReceipt(null)}
         />
       )}
+
+      {reviewing && (
+        <EvidenceReview
+          evidence={reviewEvidence(state.predictions, state.lastReviewTs || 0)}
+          lastChange={(state.reviews || [])[(state.reviews || []).length - 1]?.change || null}
+          onSave={saveReview}
+          onClose={() => setReviewing(false)}
+        />
+      )}
     </div>
   )
 }
@@ -1202,6 +1243,64 @@ function PredictionReceipt({ receipt, onReason, onDone }) {
           +5 XP for the exposure — not for being right.
         </div>
         <button className="btn ghost" onClick={onDone} style={{ marginTop: 10 }}>Noted</button>
+      </div>
+    </div>
+  )
+}
+
+/* ---------------- Evidence Review ---------------- */
+
+// The loop's Improve step. Shows this batch of evidence with zero
+// interpretation, then forces exactly one commitment: what will you change?
+// If you committed something last time, it's shown first — so the review
+// quietly asks whether you followed through.
+function EvidenceReview({ evidence, lastChange, onSave, onClose }) {
+  const [change, setChange] = useState('')
+  const ev = evidence || { n: 0 }
+  const biasWord = ev.signed > 0 ? 'over' : 'under' // ran longer than predicted = you under-estimated
+  return (
+    <div className="modal-backdrop" onClick={onClose}>
+      <div className="modal card" onClick={(e) => e.stopPropagation()}>
+        <h3><Ic src={IMGS.target} alt="🎯" size={20} /> Evidence Review</h3>
+        <div className="sub" style={{ marginBottom: 10 }}>
+          {ev.n} resolved prediction{ev.n === 1 ? '' : 's'} since last time. Just the evidence — no advice.
+        </div>
+
+        {lastChange && (
+          <div className="review-last">
+            Last time you committed to: <b>“{lastChange}”</b> — did you?
+          </div>
+        )}
+
+        <div className="stat-grid" style={{ marginTop: 4 }}>
+          <Stat value={`${ev.avgAbs}m`} label="avg miss" />
+          <Stat value={`${Math.abs(ev.signed)}m ${biasWord}`} label="you tend to run" />
+        </div>
+        {ev.biggest && (
+          <div className="review-surprise">
+            <span className="receipt-label">Biggest surprise</span>
+            <div>{ev.biggest.task} — predicted {ev.biggest.predicted}m, ran {ev.biggest.actual}m</div>
+          </div>
+        )}
+        {ev.topReason && (
+          <div className="sub" style={{ marginTop: 8 }}>
+            Most common reason you logged: <b style={{ color: 'var(--text)' }}>{ev.topReason}</b>.
+          </div>
+        )}
+
+        <div className="review-q">What will you change next week?</div>
+        <textarea
+          value={change}
+          autoFocus
+          maxLength={140}
+          placeholder="One concrete thing…"
+          onChange={(e) => setChange(e.target.value)}
+          style={{ minHeight: 60 }}
+        />
+        <button className="btn" disabled={change.trim().length < 8} onClick={() => onSave(change)}>
+          Commit the change
+        </button>
+        <button className="btn ghost" onClick={onClose}>Later</button>
       </div>
     </div>
   )
