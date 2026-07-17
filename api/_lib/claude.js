@@ -16,7 +16,7 @@ export const gatewayReady = !!(BB_KEY && BB_APP)
 // Ask Claude (via the Butterbase gateway) for a JSON object. No structured
 // outputs on this path, so the schema is spelled out in the prompt and the
 // reply is parsed out of the text — same technique as the CLI fallback.
-export async function callGatewayJSON(systemPrompt, userPrompt, { model = 'anthropic/claude-sonnet-5', maxTokens = 3000 } = {}) {
+export async function callGatewayJSON(systemPrompt, userPrompt, { model = 'anthropic/claude-sonnet-5', maxTokens = 4096 } = {}) {
   const r = await fetch(`https://api.butterbase.ai/v1/${BB_APP}/chat/completions`, {
     method: 'POST',
     headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${BB_KEY}` },
