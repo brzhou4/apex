@@ -1,7 +1,17 @@
 // APEX core game logic — pure functions + persistence.
 // Kept framework-agnostic so it could be lifted into a real backend later.
 
-const STORAGE_KEY = 'apex.state.v4'
+// Legacy single-blob key (pre-split). Still read once, for migration.
+const LEGACY_KEY = 'apex.state.v4'
+// Hot/cold split: the small, frequently-mutated "core" persists on its own key
+// so a task toggle never re-serializes the append-only logs; the unbounded
+// "history" logs live on a second key that's only rewritten when a log
+// actually changes. See useApexState in App.jsx for the disjoint-effects wiring.
+const CORE_KEY = 'apex.core.v5'
+const HISTORY_KEY = 'apex.history.v5'
+// The append-only mountains — everything that grows with months of usage.
+// Kept out of the hot blob so they're only stringified on a real cold write.
+export const HISTORY_FIELDS = ['predictions', 'proofLog', 'tierLog', 'reviews', 'scoreHistory']
 
 // Real rendered artwork instead of text emojis — Microsoft's Fluent 3D emoji
 // set (MIT licensed), hotlinked from the official repo. Every UI surface
@@ -1182,20 +1192,53 @@ export function generateHealthSnapshot() {
   }
 }
 
-// --- Persistence ---
-export function loadState() {
-  try {
-    const raw = localStorage.getItem(STORAGE_KEY)
-    return raw ? JSON.parse(raw) : null
-  } catch { return null }
+// --- Persistence (hot/cold split) ---
+const readJSON = (key) => {
+  try { const raw = localStorage.getItem(key); return raw ? JSON.parse(raw) : null } catch { return null }
 }
 
+// Load the merged state. Prefers the split v5 keys; falls back to the legacy
+// v4 blob once (a save-through then writes it into the new keys). Returns null
+// for a fresh install so the app shows onboarding.
+export function loadState() {
+  const core = readJSON(CORE_KEY)
+  const history = readJSON(HISTORY_KEY)
+  if (core) return { ...core, ...(history || {}) }
+  const legacy = readJSON(LEGACY_KEY)
+  return legacy || null
+}
+
+// Write only the hot fields — cheap, runs on nearly every interaction.
+export function saveCore(state) {
+  if (!state) return
+  const core = {}
+  for (const k in state) if (!HISTORY_FIELDS.includes(k)) core[k] = state[k]
+  try { localStorage.setItem(CORE_KEY, JSON.stringify(core)) } catch { /* ignore */ }
+}
+
+// Write only the append-only logs — the big blob, guarded to fire only when a
+// log reference actually changes (see useApexState's disjoint effect deps).
+export function saveHistory(state) {
+  if (!state) return
+  const history = {}
+  for (const k of HISTORY_FIELDS) if (state[k] !== undefined) history[k] = state[k]
+  try {
+    localStorage.setItem(HISTORY_KEY, JSON.stringify(history))
+    // First cold write after a migration retires the legacy blob.
+    if (localStorage.getItem(LEGACY_KEY)) localStorage.removeItem(LEGACY_KEY)
+  } catch { /* ignore */ }
+}
+
+// Back-compat shim: persist everything at once (used by tests / manual saves).
 export function saveState(state) {
-  try { localStorage.setItem(STORAGE_KEY, JSON.stringify(state)) } catch { /* ignore */ }
+  saveCore(state)
+  saveHistory(state)
 }
 
 export function resetState() {
-  try { localStorage.removeItem(STORAGE_KEY) } catch { /* ignore */ }
+  for (const k of [CORE_KEY, HISTORY_KEY, LEGACY_KEY]) {
+    try { localStorage.removeItem(k) } catch { /* ignore */ }
+  }
 }
 
 export function todayKey() {

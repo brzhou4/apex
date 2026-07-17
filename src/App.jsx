@@ -15,7 +15,7 @@ import {
   GOAL_TYPES, parseGoals, buildGoalPlan, tierCounts, humanRank,
   validateBaseline, goalFlags,
   rollFocusRival, focusDuelReward,
-  loadState, saveState, resetState, todayKey,
+  loadState, saveCore, saveHistory, resetState, todayKey, HISTORY_FIELDS,
 } from './game.js'
 
 // Rendered artwork icon (Fluent 3D) — falls back to the alt emoji if the
@@ -34,14 +34,33 @@ import {
 import { ProofRecorder, TimelapseGallery, FocusDuel } from './Proof.jsx'
 import { DEFAULT_CAPTURE_MS, loadTimelapse } from './proof.js'
 
-export default function App() {
+// Single source of truth + hot/cold persistence. One unified `state` object
+// keeps every consumer's read/write signature unchanged, while TWO persistence
+// effects with disjoint dependency arrays split the writes: the small "core"
+// blob saves on any change (cheap), but the append-only history logs are
+// re-serialized ONLY when one of their references actually changes. A task
+// toggle leaves state.predictions/proofLog/etc referentially equal, so the
+// history effect is skipped and the growing mountain never touches the main
+// thread. Swap saveHistory's body for IndexedDB later without touching callers.
+function useApexState() {
   const [state, setState] = useState(() => {
     const s = loadState()
     return s ? rollForward(s) : s
   })
+  // Hot: fires on nearly every interaction, but only stringifies the small blob.
+  useEffect(() => { if (state) saveCore(state) }, [state])
+  // Cold: deps are the log references only — unchanged on a hot update, so this
+  // effect no-ops on a task toggle and runs only on a real append/resolution.
+  const cold = HISTORY_FIELDS.map((f) => state?.[f])
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  useEffect(() => { if (state) saveHistory(state) }, cold)
+  return [state, setState]
+}
+
+export default function App() {
+  const [state, setState] = useApexState()
   const [splash, setSplash] = useState(true)
   const [leaving, setLeaving] = useState(false)
-  useEffect(() => { if (state) saveState(state) }, [state])
 
   // Theme lives at the root so even the splash and onboarding respect it.
   useEffect(() => {
