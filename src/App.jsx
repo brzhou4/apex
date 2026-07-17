@@ -132,11 +132,22 @@ function Onboarding({ onDone }) {
     const p = parsed || parseDreamGoal(goal)
     const sc = computeHumanScore(bl)
     // Each goal gets a Claude-written plan when the API server is up; the
-    // local template only exists so onboarding never blocks.
+    // local template only exists so onboarding never blocks. The personal
+    // context is what makes plans fit THIS person; details are stored on the
+    // goal so the plan can be re-sharpened later without redoing onboarding.
+    const personCtx = {
+      name: name.trim() || undefined,
+      age: bl.age || undefined,
+      educationLevel: bl.gradeLevel || undefined,
+      studyHoursPerWeek: bl.studyHrs || undefined,
+      sleepHoursPerNight: bl.sleepHrs || undefined,
+      fullDreamText: goal.trim(),
+    }
     const planGoals = await Promise.all(goals.map(async (g) => {
-      const remote = await planGoalRemote(g.text, goalDetails[g.goalId])
-      if (remote) return { ...g, ...remote, source: 'claude' }
-      return { ...g, ...buildGoalPlan(g, goalDetails[g.goalId]), source: 'local' }
+      const otherGoals = goals.filter((o) => o.goalId !== g.goalId).map((o) => o.text).join('; ') || undefined
+      const remote = await planGoalRemote(g.text, goalDetails[g.goalId], { ...personCtx, otherGoals })
+      if (remote) return { ...g, details: goalDetails[g.goalId] || {}, ...remote, source: 'claude' }
+      return { ...g, details: goalDetails[g.goalId] || {}, ...buildGoalPlan(g, goalDetails[g.goalId]), source: 'local' }
     }))
     const goalTasks = planGoals.map((g, i) => ({
       id: `goal-${g.goalId}`,
@@ -1075,7 +1086,7 @@ function Dashboard({ state, setState }) {
         {tab === 'plan' && (
           <>
             <PageHead eyebrow="8 WEEKS TO DIFFERENT" title="The Dream" color="#a78bfa" />
-            <Plan state={state} />
+            <Plan state={state} setState={setState} flash={flash} />
           </>
         )}
         {tab === 'feed' && <Feed state={state} setState={setState} flash={flash} openMyProfile={openProfile} />}
@@ -1709,9 +1720,11 @@ function SpinWheel({ state, setState, flash, allDone }) {
 
 // One goal's roadmap, kept SHORT: the weekly schedule, then a week-selector
 // strip (✓ past, glowing current) with only the selected week's details shown.
-function GoalPlanCard({ goal, currentWeek }) {
+function GoalPlanCard({ goal, currentWeek, onSharpen, sharpening }) {
   const weeks = goal.weeks || []
   const [shown, setShown] = useState(Math.min(currentWeek, weeks.length))
+  const [noteOpen, setNoteOpen] = useState(false)
+  const [note, setNote] = useState('')
   const w = weeks.find((x) => x.week === shown) || weeks[0]
 
   return (
@@ -1758,13 +1771,75 @@ function GoalPlanCard({ goal, currentWeek }) {
           </div>
         </div>
       )}
+
+      {/* Doesn't hit? Tell Claude what it got wrong and get a rewrite. */}
+      {onSharpen && (!noteOpen ? (
+        <button className="btn ghost btn-sm" disabled={sharpening} onClick={() => setNoteOpen(true)}>
+          {sharpening ? 'Rewriting your plan…' : '✦ Sharpen this plan'}
+        </button>
+      ) : (
+        <div style={{ marginTop: 12 }}>
+          <Field label="What should this plan know about you? (optional)">
+            <input
+              value={note}
+              autoFocus
+              maxLength={200}
+              placeholder="e.g. I'm a junior, tournaments start in March, weekends only"
+              onChange={(e) => setNote(e.target.value)}
+              onKeyDown={(e) => e.key === 'Enter' && !sharpening && (setNoteOpen(false), onSharpen(goal, note))}
+            />
+          </Field>
+          <div style={{ display: 'flex', gap: 10 }}>
+            <button className="btn" style={{ flex: 1 }} disabled={sharpening} onClick={() => { setNoteOpen(false); onSharpen(goal, note) }}>
+              {sharpening ? 'Rewriting…' : 'Rewrite with Claude'}
+            </button>
+            <button className="btn ghost" style={{ flex: 0.6 }} onClick={() => setNoteOpen(false)}>Cancel</button>
+          </div>
+        </div>
+      ))}
     </div>
   )
 }
 
-function Plan({ state }) {
+function Plan({ state, setState, flash }) {
   const parsed = state.parsed || {}
   const score = state.score || computeHumanScore(state.baseline || {})
+  const [sharpening, setSharpening] = useState(null) // goalId being rewritten
+
+  // Re-personalize one goal's plan without redoing onboarding. The note is
+  // the user telling Claude what the last plan got wrong — highest priority.
+  async function sharpen(goal, note) {
+    if (sharpening) return
+    setSharpening(goal.goalId)
+    const bl = state.baseline || {}
+    const remote = await planGoalRemote(goal.text, goal.details || {}, {
+      name: state.name || undefined,
+      age: bl.age || undefined,
+      educationLevel: bl.gradeLevel || undefined,
+      studyHoursPerWeek: bl.studyHrs || undefined,
+      sleepHoursPerNight: bl.sleepHrs || undefined,
+      fullDreamText: state.dreamGoal || undefined,
+      note: (note || '').trim() || undefined,
+    })
+    setSharpening(null)
+    if (!remote) {
+      flash('AI plans need the backend — run `npm run server` (one-time setup in the README)')
+      return
+    }
+    setState((s) => ({
+      ...s,
+      plan: {
+        ...s.plan,
+        goals: (s.plan?.goals || []).map((g) => (g.goalId === goal.goalId ? { ...g, ...remote, source: 'claude' } : g)),
+      },
+      // Keep the daily task in step with the rewritten plan (rank progress
+      // already banked today is preserved).
+      tasks: (s.tasks || []).map((t) => (t.id === `goal-${goal.goalId}`
+        ? { ...t, pillar: remote.task.pillar, title: remote.task.title, unit: remote.task.unit, tiers: makeTiers(remote.task.goldTarget) }
+        : t)),
+    }))
+    flash(<>Plan rewritten for you ✦</>)
+  }
   const startDate = state.plan?.createdOn || state.scoreHistory?.[0]?.date || state.lastActiveDay || todayKey()
   const daysIn = Math.max(0, daysBetween(startDate, todayKey()))
   const gap = Math.max(0, score.target - score.total)
@@ -1804,7 +1879,15 @@ function Plan({ state }) {
       </div>
 
       {planGoals.length > 0 ? (
-        planGoals.map((g) => <GoalPlanCard key={g.goalId} goal={g} currentWeek={currentWeek} />)
+        planGoals.map((g) => (
+          <GoalPlanCard
+            key={g.goalId}
+            goal={g}
+            currentWeek={currentWeek}
+            onSharpen={sharpen}
+            sharpening={sharpening === g.goalId}
+          />
+        ))
       ) : (
         <div className="card">
           <h3>Your {legacyRoadmap.length}-Week Roadmap</h3>

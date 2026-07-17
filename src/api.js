@@ -27,12 +27,12 @@ export async function parseDreamGoalRemote(goal) {
 // Ask Claude for a full personalized 8-week plan for ONE goal. Returns null
 // when the API server is down or has no key — callers fall back to the
 // local rule-based template so onboarding never blocks.
-export async function planGoalRemote(goal, details = {}) {
+export async function planGoalRemote(goal, details = {}, context = {}) {
   try {
     const r = await fetch('/api/plan-goal', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ goal, details }),
+      body: JSON.stringify({ goal, details, context }),
     })
     if (!r.ok) return null
     const p = await r.json()

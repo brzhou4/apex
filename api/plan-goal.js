@@ -50,16 +50,19 @@ const PLAN_SCHEMA = {
   additionalProperties: false,
 }
 
-const PLAN_SYSTEM = `You build hyper-specific 8-week plans for APEX, a self-improvement app. The user states a goal in their own words plus how much time they can commit, what skill they want to sharpen, and how they'll measure success.
+const PLAN_SYSTEM = `You build hyper-specific 8-week plans for APEX, a self-improvement app. You receive the goal in the user's own words, their commitment answers, and personal context (age, education level, weekly hours, other goals). The plan must read like it was written by a coach who knows THIS person — not a template with the goal name pasted in.
 
-Rules:
+Hard rules:
 - Take EVERY goal seriously, however unusual, small, or personal — owning a capybara, exploring identity or feelings, learning to whistle. Meet the user where they are, warmly and without judgment.
-- Be concrete: real actions, real numbers, real names of things to research or do. Never write filler like "work on your goal" or "stay consistent".
-- Weeks must build on each other: research/foundations early, real-world action in the middle, a genuine test or milestone by week 8.
+- SPECIFICITY TEST: every single objective must contain at least one concrete number (reps, pages, minutes, counts, scores) OR a named real-world thing (a specific technique, resource type, venue, or step). Forbidden phrasings: "work on", "practice more", "stay consistent", "keep improving", "focus on".
+- USE THEIR CONTEXT: reference their actual weekly hours when sizing weeks (someone with 4 hrs/week gets a different plan than 15). If their age/education suggests school, schedule around a school week. If they gave a skill to sharpen or a success test, those words must appear in the plan.
+- Weeks must escalate: foundations in weeks 1-2, real-world action by weeks 3-5, an honest dress rehearsal around week 6, the user's own stated success test (or the nearest real version of it) in weeks 7-8.
+- Each week's focus line should be punchy and second-person ("Your first full run-through"), never generic ("Build the habit").
 - For personal/identity/emotional goals, favor reflection, journaling prompts, safe conversations, and community — never prescribe outcomes about who the user should be, and never suggest anything unsafe.
-- For goals involving animals, purchases, or legal matters, week 1 should include checking legality/requirements where they live.
-- The daily task should be something they can actually do most days and film themselves doing (it gets camera-verified).
-- Keep every string tight: focus lines under 12 words, objectives under 14 words.`
+- For goals involving animals, purchases, or legal matters, week 1 includes checking legality/requirements where they live.
+- The daily task must be filmable (it gets camera-verified) and doable most days within their stated time budget.
+- If a "note" is present in the context, it is the user telling you what the last plan got wrong — treat it as the highest-priority instruction.
+- Keep strings tight: focus lines under 12 words, objectives under 16 words.`
 
 function normalizePlan(plan) {
   if (!Array.isArray(plan.weeks) || plan.weeks.length !== 8) throw new Error('bad weeks')
@@ -76,6 +79,7 @@ export default async function handler(req, res) {
   const body = readJsonBody(req)
   const goal = ((body && body.goal) || '').toString().slice(0, 300)
   const details = (body && body.details) || {}
+  const context = (body && body.context) || {}
   if (!goal.trim()) return res.status(400).json({ error: 'missing_goal' })
   if (!client) {
     return res.status(503).json({ error: 'no_api_key', message: 'Set ANTHROPIC_API_KEY to enable AI plans.' })
@@ -85,7 +89,11 @@ export default async function handler(req, res) {
     .filter(([, v]) => String(v || '').trim())
     .map(([k, v]) => `- ${k}: ${String(v).slice(0, 120)}`)
     .join('\n')
-  const userPrompt = `Goal, in the user's words: "${goal}"\n\nTheir answers:\n${detailLines || '- (none given)'}\n\nBuild the 8-week plan.`
+  const ctxLines = Object.entries(context)
+    .filter(([, v]) => String(v || '').trim())
+    .map(([k, v]) => `- ${k}: ${String(v).slice(0, 200)}`)
+    .join('\n')
+  const userPrompt = `Goal, in the user's words: "${goal}"\n\nTheir answers about this goal:\n${detailLines || '- (none given)'}\n\nAbout this person:\n${ctxLines || '- (nothing shared)'}\n\nBuild the 8-week plan. It must pass the specificity test on every objective and visibly use their context — this plan should not fit anyone else.`
 
   try {
     const response = await client.messages.create({
