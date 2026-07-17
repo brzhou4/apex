@@ -1,13 +1,24 @@
 // Shared presentational primitives — used across every feature. Pure and
 // stateless; the only data dependency is game.js constants (icon URLs, colors).
 import { IMGS, TITLE_COLORS, SHOP_ITEMS } from './game.js'
+import { ICONS, FALLBACK_ICON } from './icons.jsx'
 
-// Rendered artwork icon (Fluent 3D) — falls back to the alt emoji if the
-// image can't load (offline). The gem artwork is a blue diamond, but our
-// currency is EMERALDS — tint it green wherever it appears.
+// One consistent SVG line icon, inheriting color from context (currentColor).
+// `src` is an icon key (from IMGS/TIER_META); emeralds get the premium green.
 export function Ic({ src, alt = '', size = 18, style }) {
   const emerald = src === IMGS.gem
-  return <img className={`ic-img${emerald ? ' ic-emerald' : ''}`} src={src} alt={alt} width={size} height={size} loading="lazy" style={style} />
+  const inner = ICONS[src] || FALLBACK_ICON
+  return (
+    <svg
+      className={`ic-img${emerald ? ' ic-emerald' : ''}`}
+      viewBox="0 0 24 24" width={size} height={size}
+      fill="none" stroke="currentColor" strokeWidth="2"
+      strokeLinecap="round" strokeLinejoin="round"
+      role="img" aria-label={alt || undefined} aria-hidden={alt ? undefined : 'true'}
+      style={style}
+      dangerouslySetInnerHTML={{ __html: inner }}
+    />
+  )
 }
 
 export function Field({ label, children }) {

@@ -18,58 +18,21 @@ export const HISTORY_FIELDS = ['predictions', 'proofLog', 'tierLog', 'reviews', 
 // renders these as <img> for that glossy Duolingo-style look.
 const FLUENT = 'https://raw.githubusercontent.com/microsoft/fluentui-emoji/main/assets'
 const fl = (folder, file) => `${FLUENT}/${encodeURIComponent(folder)}/3D/${file}_3d.png`
+// Icon keys — resolved to a consistent SVG line-icon set by <Ic> (see icons.jsx).
+// Values are the icon name; keeping the IMGS.xxx indirection means no call site
+// changed when we moved off emoji artwork.
 export const IMGS = {
-  fire: fl('Fire', 'fire'),
-  gem: fl('Gem stone', 'gem_stone'),
-  shield: fl('Shield', 'shield'),
-  brain: fl('Brain', 'brain'),
-  biceps: `${FLUENT}/${encodeURIComponent('Flexed biceps')}/Default/3D/flexed_biceps_3d_default.png`,
-  books: fl('Books', 'books'),
-  house: fl('House', 'house'),
-  compass: fl('Compass', 'compass'),
-  slot: fl('Slot machine', 'slot_machine'),
-  trophy: fl('Trophy', 'trophy'),
-  party: fl('Party popper', 'party_popper'),
-  bags: fl('Shopping bags', 'shopping_bags'),
-  globe: fl('Globe showing americas', 'globe_showing_americas'),
-  camera: fl('Camera with flash', 'camera_with_flash'),
-  bolt: fl('High voltage', 'high_voltage'),
-  target: fl('Bullseye', 'bullseye'),
-  heart: fl('Red heart', 'red_heart'),
-  crown: fl('Crown', 'crown'),
-  star: fl('Glowing star', 'glowing_star'),
-  lock: fl('Locked', 'locked'),
-  wave: `${FLUENT}/${encodeURIComponent('Waving hand')}/Default/3D/waving_hand_3d_default.png`,
-  check: fl('Check mark button', 'check_mark_button'),
-  hourglass: fl('Hourglass not done', 'hourglass_not_done'),
-  pencil: fl('Pencil', 'pencil'),
-  bulb: fl('Light bulb', 'light_bulb'),
-  warning: fl('Warning', 'warning'),
-  skull: fl('Skull', 'skull'),
-  swords: fl('Crossed swords', 'crossed_swords'),
-  seedling: fl('Seedling', 'seedling'),
-  phone: fl('Mobile phone', 'mobile_phone'),
-  medal: fl('Sports medal', 'sports_medal'),
-  rocket: fl('Rocket', 'rocket'),
-  gradcap: fl('Graduation cap', 'graduation_cap'),
-  shoe: fl('Running shoe', 'running_shoe'),
-  salad: fl('Green salad', 'green_salad'),
-  hundred: fl('Hundred points', 'hundred_points'),
-  dart: fl('Bullseye', 'bullseye'),
-  memo: fl('Memo', 'memo'),
-  floppy: fl('Floppy disk', 'floppy_disk'),
-  chart: fl('Chart increasing', 'chart_increasing'),
-  person: fl('Bust in silhouette', 'bust_in_silhouette'),
-  comment: fl('Speech balloon', 'speech_balloon'),
-  share: fl('Outbox tray', 'outbox_tray'),
-  search: fl('Magnifying glass tilted left', 'magnifying_glass_tilted_left'),
-  pet: fl('Dog face', 'dog_face'),
-  apple: fl('Red apple', 'red_apple'),
-  gear: fl('Gear', 'gear'),
-  sun: fl('Sun', 'sun'),
-  moon: fl('Crescent moon', 'crescent_moon'),
-  trash: fl('Wastebasket', 'wastebasket'),
-  cake: fl('Birthday cake', 'birthday_cake'),
+  fire: 'fire', gem: 'gem', shield: 'shield', brain: 'brain', biceps: 'dumbbell',
+  books: 'book', house: 'home', compass: 'compass', slot: 'spin', trophy: 'trophy',
+  party: 'party', bags: 'bag', globe: 'globe', camera: 'camera', bolt: 'bolt',
+  target: 'target', heart: 'heart', crown: 'crown', star: 'star', lock: 'lock',
+  wave: 'sparkle', check: 'check', hourglass: 'hourglass', pencil: 'pencil',
+  bulb: 'bulb', warning: 'warning', skull: 'skull', swords: 'swords',
+  seedling: 'sprout', phone: 'phone', medal: 'medal', rocket: 'rocket',
+  gradcap: 'gradcap', shoe: 'shoe', salad: 'leaf', hundred: 'award', dart: 'target',
+  memo: 'doc', floppy: 'save', chart: 'trending', person: 'user', comment: 'message',
+  share: 'share', search: 'search', pet: 'paw', apple: 'apple', gear: 'gear',
+  sun: 'sun', moon: 'moon', trash: 'trash', cake: 'cake',
 }
 
 // Rendered artwork per goal type (keyed by GOAL_TYPES id)
@@ -147,14 +110,16 @@ export function parseDreamGoal(text) {
 // Gold steps = 8000 makes Platinum = 10000. Seven ranks, each with its own
 // identity and icon.
 export const TIERS = ['Bronze', 'Silver', 'Gold', 'Platinum', 'Diamond', 'Ascendant', 'Apex']
+// Tiers share one rank-badge shape (icons.jsx: rank1…rank7), differentiated by
+// color and pip-count — clean and consistent, like a rank ladder.
 export const TIER_META = {
-  Bronze: { fancy: 'Building Bronze', icon: '🧱', img: fl('Brick', 'brick'), color: '#b45309' },
-  Silver: { fancy: 'Steep Silver', icon: '🗻', img: fl('Mount fuji', 'mount_fuji'), color: '#94a3b8' },
-  Gold: { fancy: 'Gaining Gold', icon: '💰', img: fl('Money bag', 'money_bag'), color: '#f59e0b' },
-  Platinum: { fancy: 'Preaching Platinum', icon: '📣', img: fl('Megaphone', 'megaphone'), color: '#22d3ee' },
-  Diamond: { fancy: 'Digging Diamond', icon: '⛏️', img: fl('Pick', 'pick'), color: '#a78bfa' },
-  Ascendant: { fancy: 'Achieving Ascendant', icon: '🌠', img: fl('Shooting star', 'shooting_star'), color: '#f472b6' },
-  Apex: { fancy: 'APEX', icon: '👑', img: fl('Crown', 'crown'), color: '#38bdf8' },
+  Bronze: { fancy: 'Building Bronze', icon: '🧱', img: 'rank1', color: '#cd7f32' },
+  Silver: { fancy: 'Steep Silver', icon: '🗻', img: 'rank2', color: '#aeb9c4' },
+  Gold: { fancy: 'Gaining Gold', icon: '💰', img: 'rank3', color: '#f5b301' },
+  Platinum: { fancy: 'Preaching Platinum', icon: '📣', img: 'rank4', color: '#22d3ee' },
+  Diamond: { fancy: 'Digging Diamond', icon: '⛏️', img: 'rank5', color: '#a78bfa' },
+  Ascendant: { fancy: 'Achieving Ascendant', icon: '🌠', img: 'rank6', color: '#f472b6' },
+  Apex: { fancy: 'APEX', icon: '👑', img: 'rank7', color: '#58cc02' },
 }
 export const TIER_COLORS = Object.fromEntries(TIERS.map((t) => [t, TIER_META[t].color]))
 

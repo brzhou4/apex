@@ -1,28 +1,28 @@
-@import url('https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@500;600;700&family=Archivo:wght@700;800;900&display=swap');
+@import url('https://fonts.googleapis.com/css2?family=Nunito:wght@400;600;700;800;900&display=swap');
 
 :root {
-  /* Blue-black, sharp */
-  --bg: #05080f;
-  --panel: #0b1220;
-  --panel-2: #080e19;
-  --border: #1c2a44;
-  --text: #e8eefb;
-  --muted: #7d8ba6;
+  /* Duolingo-dark — friendly, high-contrast, green-led */
+  --bg: #131f24;
+  --panel: #202f36;    /* card surface */
+  --panel-2: #1a262c;  /* inset surface */
+  --border: #37464f;
+  --text: #f6fafc;
+  --muted: #93a2ab;
 
-  --green: #1f6feb;    /* primary action is now electric blue */
-  --green-d: #1554b8;
-  --blue: #38bdf8;
-  --blue-d: #0ea5e9;
+  --green: #58cc02;    /* primary action */
+  --green-d: #48a802;  /* the pressable bottom edge */
+  --blue: #1cb0f6;     /* secondary */
+  --blue-d: #1592ce;
 
   --accent: #ffc800;   /* coins / gold */
-  --accent-2: #38bdf8; /* blue accent */
-  --emerald: #10b981;  /* emeralds — premium currency */
-  --mind: #a78bfa;     /* purple */
-  --body: #34d399;     /* green */
-  --intellect: #38bdf8;/* blue */
-  --flame: #ff9600;    /* orange */
+  --accent-2: #1cb0f6;
+  --emerald: #14d78f;  /* emeralds — premium currency */
+  --mind: #ce82ff;     /* purple */
+  --body: #58cc02;     /* green */
+  --intellect: #1cb0f6;/* blue */
+  --flame: #ff9600;    /* streak */
 
-  font-family: 'Space Grotesk', ui-sans-serif, system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
+  font-family: 'Nunito', ui-rounded, "SF Pro Rounded", system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
 }
 
 * { box-sizing: border-box; }
@@ -30,11 +30,12 @@
 body {
   margin: 0;
   background:
-    radial-gradient(900px 500px at 50% -8%, #0d1b33 0%, rgba(13,27,51,0) 60%),
+    radial-gradient(1000px 520px at 50% -12%, #17323a 0%, rgba(23,50,58,0) 62%),
     var(--bg);
   color: var(--text);
   min-height: 100vh;
   -webkit-font-smoothing: antialiased;
+  text-rendering: optimizeLegibility;
 }
 
 /* Splash intro — APEX letters bounce up one by one, Duolingo-style */
@@ -44,7 +45,7 @@ body {
 }
 .splash-inner { text-align: center; }
 .splash-letter {
-  display: inline-block; font-family: 'Archivo', sans-serif; font-weight: 900;
+  display: inline-block; font-family: 'Nunito', sans-serif; font-weight: 900;
   font-size: 64px; letter-spacing: 10px; color: var(--blue);
   opacity: 0; transform: translateY(46px) scale(0.7);
   animation: letterUp 0.55s cubic-bezier(0.34, 1.56, 0.64, 1) forwards;
@@ -101,7 +102,7 @@ body {
 .brand {
   text-align: center;
   letter-spacing: 6px;
-  font-family: 'Archivo', sans-serif;
+  font-family: 'Nunito', sans-serif;
   font-weight: 900;
   font-size: 24px;
   color: var(--blue);
@@ -112,11 +113,11 @@ body {
 .card {
   background: var(--panel);
   border: 2px solid var(--border);
-  border-radius: 12px;
-  padding: 16px;
+  border-radius: 16px;
+  padding: 17px;
   margin-top: 14px;
 }
-.card h3 { margin: 0 0 12px; font-size: 17px; font-weight: 700; color: var(--text); }
+.card h3 { margin: 0 0 12px; font-size: 17px; font-weight: 800; color: var(--text); display: flex; align-items: center; gap: 7px; }
 .sub { color: var(--muted); font-size: 13px; font-weight: 600; }
 
 /* Onboarding — first screen fills the whole viewport */
@@ -124,7 +125,7 @@ body {
   min-height: calc(100dvh - 90px);
   display: flex; flex-direction: column; justify-content: center;
 }
-.onb-q { font-size: 26px; font-weight: 700; font-family: 'Archivo', sans-serif; margin: 6px 0 14px; line-height: 1.2; color: var(--text); }
+.onb-q { font-size: 26px; font-weight: 700; font-family: 'Nunito', sans-serif; margin: 6px 0 14px; line-height: 1.2; color: var(--text); }
 textarea {
   width: 100%; min-height: 92px; resize: vertical;
   background: var(--panel-2); border: 2px solid var(--border); border-radius: 14px;
@@ -280,11 +281,10 @@ select { appearance: none; }
   color: var(--muted); font-size: 9px; font-weight: 800; cursor: pointer; white-space: nowrap;
   display: flex; flex-direction: column; align-items: center; gap: 2px;
 }
-.tab .ic-img { filter: grayscale(0.55) opacity(0.8); transition: filter 0.15s ease, transform 0.15s cubic-bezier(0.34, 1.56, 0.64, 1); }
+.tab .ic-img { opacity: 0.9; transition: transform 0.15s cubic-bezier(0.34, 1.56, 0.64, 1); }
 .tab:hover { background: var(--panel); }
-.tab:hover .ic-img { filter: none; }
-.tab.active .ic-img { filter: none; transform: scale(1.15); }
-.tab.active { font-weight: 900; }
+.tab.active .ic-img { transform: scale(1.12); }
+.tab.active { font-weight: 900; color: var(--green); }
 .tab-label { letter-spacing: 0.4px; text-transform: uppercase; }
 
 .toast {
@@ -399,12 +399,12 @@ select { appearance: none; }
 /* Shop currency badge */
 .price-emerald { color: var(--emerald); font-weight: 800; }
 
-/* Rendered artwork icons — replace text emojis everywhere */
-.ic-img { vertical-align: -3px; object-fit: contain; user-select: none; }
-.pill .ic-img, .tab .ic-img { vertical-align: -3px; margin-right: 1px; }
+/* SVG line icons — inherit color from context, sit on the text baseline */
+.ic-img { vertical-align: -0.15em; user-select: none; flex-shrink: 0; }
+.pill .ic-img, .tab .ic-img { margin-right: 1px; }
 
-/* The gem artwork is a blue diamond; our currency is EMERALDS — tint green. */
-.ic-emerald { filter: hue-rotate(-62deg) saturate(1.35) brightness(1.02); }
+/* Emeralds are the premium currency — always the signature green. */
+.ic-emerald { color: var(--emerald); }
 
 /* Social — member photos & profile modal */
 .member-photo {
@@ -463,42 +463,43 @@ select { appearance: none; }
   font-size: 15px; font-weight: 900; font-family: inherit;
 }
 
-/* Feed posts */
+/* Feed posts — clean card, clear hierarchy */
 .feed-post { animation: postIn 0.35s cubic-bezier(0.22, 1, 0.36, 1); }
 @keyframes postIn { from { opacity: 0; transform: translateY(14px) scale(0.98); } to { opacity: 1; transform: none; } }
-.feed-author { display: flex; align-items: center; gap: 10px; }
-.feed-name { font-weight: 800; font-size: 14px; display: flex; align-items: center; gap: 6px; }
-.feed-time { font-size: 11px; color: var(--muted); font-weight: 600; }
-.feed-text { margin-top: 10px; font-size: 14px; line-height: 1.45; }
+.feed-author { display: flex; align-items: center; gap: 11px; }
+.feed-name { font-weight: 800; font-size: 14.5px; display: flex; align-items: center; gap: 6px; color: var(--text); }
+.feed-time { font-size: 11.5px; color: var(--muted); font-weight: 700; margin-top: 1px; }
+.feed-text { margin-top: 11px; font-size: 14.5px; line-height: 1.5; color: var(--text); }
 .feed-img {
-  width: 100%; border-radius: 12px; margin-top: 10px; display: block;
+  width: 100%; border-radius: 14px; margin-top: 12px; display: block;
   border: 2px solid var(--border);
 }
 .feed-timelapse { position: relative; overflow: hidden; }
 .feed-timelapse img, .feed-timelapse video { width: 100%; display: block; }
 .feed-play {
-  position: absolute; bottom: 8px; left: 8px; background: rgba(0,0,0,0.65);
-  color: #fff; font-size: 11px; font-weight: 800; padding: 4px 10px; border-radius: 8px;
+  position: absolute; bottom: 10px; left: 10px; background: rgba(0,0,0,0.7);
+  color: #fff; font-size: 11px; font-weight: 800; padding: 5px 11px; border-radius: 999px;
+  display: inline-flex; align-items: center; gap: 5px;
 }
 
-/* Instagram-style action row: heart / comment / share icon buttons */
-.feed-actions { margin-top: 10px; display: flex; gap: 4px; align-items: center; }
+/* Action row: like / comment / share — quiet line icons that light up */
+.feed-actions { margin-top: 12px; display: flex; gap: 18px; align-items: center; padding-top: 12px; border-top: 1.5px solid var(--border); }
 .fa-btn {
-  background: none; border: none; cursor: pointer; padding: 4px 8px 4px 0;
-  display: inline-flex; align-items: center; font-family: inherit;
-  transition: transform 0.15s cubic-bezier(0.34, 1.56, 0.64, 1);
+  background: none; border: none; cursor: pointer; padding: 0; color: var(--muted);
+  display: inline-flex; align-items: center; gap: 6px; font-family: inherit;
+  font-size: 13px; font-weight: 800;
+  transition: transform 0.15s cubic-bezier(0.34, 1.56, 0.64, 1), color 0.15s ease;
 }
-.fa-btn .ic-img { filter: grayscale(1) opacity(0.75); transition: filter 0.15s ease; }
-.fa-btn:hover { transform: scale(1.12); }
-.fa-btn:hover .ic-img { filter: grayscale(0.4) opacity(0.95); }
-.fa-btn:active { transform: scale(0.9); }
-.fa-btn.liked .ic-img { filter: none; animation: likePop 0.35s cubic-bezier(0.34, 1.56, 0.64, 1); }
+.fa-btn:hover { color: var(--text); transform: scale(1.06); }
+.fa-btn:active { transform: scale(0.92); }
+.fa-btn.liked { color: #ff4b6e; }
+.fa-btn.liked .ic-img { animation: likePop 0.35s cubic-bezier(0.34, 1.56, 0.64, 1); }
 @keyframes likePop { 0% { transform: scale(0.6); } 60% { transform: scale(1.3); } 100% { transform: scale(1); } }
 
-.feed-likes { font-size: 13px; font-weight: 800; margin-top: 4px; }
-.feed-view-comments { font-size: 12px; font-weight: 700; color: var(--muted); margin-top: 6px; cursor: pointer; }
+.feed-likes { font-size: 13px; font-weight: 800; margin-top: 10px; color: var(--text); }
+.feed-view-comments { font-size: 12.5px; font-weight: 700; color: var(--muted); margin-top: 8px; cursor: pointer; }
 .feed-view-comments:hover { color: var(--text); }
-.feed-comment { font-size: 13px; margin-top: 6px; line-height: 1.4; }
+.feed-comment { font-size: 13.5px; margin-top: 7px; line-height: 1.45; color: var(--text); }
 .feed-comment b { margin-right: 4px; }
 .feed-add-comment { display: flex; align-items: center; gap: 8px; margin-top: 8px; }
 .feed-add-comment input {
@@ -532,7 +533,7 @@ select { appearance: none; }
   padding: 10px 2px; margin: -6px -2px 0; border-bottom: 2px solid var(--border);
 }
 .brand-sm {
-  font-family: 'Archivo', sans-serif; font-weight: 900; font-size: 18px;
+  font-family: 'Nunito', sans-serif; font-weight: 900; font-size: 18px;
   letter-spacing: 4px; color: var(--blue);
 }
 .topbar-right { display: flex; align-items: center; gap: 12px; }
@@ -550,15 +551,23 @@ select { appearance: none; }
 /* Page heads — every tab opens with its own colored identity */
 .page-head { display: flex; align-items: center; gap: 12px; margin: 16px 0 2px; min-height: 48px; }
 .eyebrow { font-size: 10px; font-weight: 900; letter-spacing: 2.5px; }
-.page-title { font-family: 'Archivo', sans-serif; font-size: 26px; font-weight: 900; margin: 0; line-height: 1.1; }
-.feed-head { gap: 10px; }
+.page-title { font-family: 'Nunito', sans-serif; font-size: 26px; font-weight: 900; margin: 0; line-height: 1.1; }
+.feed-head { gap: 10px; align-items: flex-start; }
+.feed-head-actions { display: flex; align-items: center; gap: 8px; }
+.feed-compose-btn {
+  width: 42px; height: 42px; flex-shrink: 0; border: none; border-radius: 14px; cursor: pointer;
+  background: var(--green); color: #fff; display: grid; place-items: center;
+  box-shadow: 0 3px 0 var(--green-d); transition: transform 0.12s ease, filter 0.12s ease;
+}
+.feed-compose-btn:hover { filter: brightness(1.06); }
+.feed-compose-btn:active { transform: translateY(3px); box-shadow: 0 0 0 var(--green-d); }
 
 /* Level strip — slim XP banner on Today */
 .level-strip { display: flex; align-items: center; gap: 12px; padding: 12px 14px; }
 .ls-badge {
   background: rgba(0,0,0,0.35); border: 2px solid rgba(255,255,255,0.18);
   border-radius: 12px; padding: 8px 10px; font-weight: 900; font-size: 13px;
-  font-family: 'Archivo', sans-serif; flex-shrink: 0;
+  font-family: 'Nunito', sans-serif; flex-shrink: 0;
 }
 .ls-rank { font-weight: 800; font-size: 13px; }
 .ls-done { color: var(--body); margin-left: 8px; font-size: 11px; font-weight: 800; }
@@ -626,7 +635,7 @@ select { appearance: none; }
   cursor: pointer; font-family: inherit;
 }
 .pp-back:hover { border-color: var(--blue); color: var(--blue); }
-.pp-handle { font-weight: 900; font-size: 16px; font-family: 'Archivo', sans-serif; letter-spacing: 0.5px; }
+.pp-handle { font-weight: 900; font-size: 16px; font-family: 'Nunito', sans-serif; letter-spacing: 0.5px; }
 .pp-counts { display: flex; justify-content: center; gap: 28px; margin-top: 14px; }
 .pp-counts > div { display: flex; flex-direction: column; align-items: center; }
 .pp-counts b { font-size: 18px; font-weight: 900; }
@@ -686,7 +695,7 @@ select { appearance: none; }
   60% { transform: scale(1.12) rotate(8deg); }
   100% { transform: scale(1) rotate(0); }
 }
-.pet-name { font-family: 'Archivo', sans-serif; font-weight: 900; font-size: 20px; margin-top: 8px; }
+.pet-name { font-family: 'Nunito', sans-serif; font-weight: 900; font-size: 20px; margin-top: 8px; }
 .pet-card .score-row, .pet-card .bar { text-align: left; }
 
 /* Party emblems */
@@ -861,7 +870,7 @@ body.light .modal-backdrop { background: rgba(30, 41, 66, 0.45); }
 .suggest-card { opacity: 0; transform: translateY(26px); transition: opacity 0.5s ease, transform 0.55s cubic-bezier(0.22, 1, 0.36, 1); }
 .suggest-card.revealed { opacity: 1; transform: none; }
 .suggest-head { display: flex; align-items: center; gap: 12px; margin-bottom: 6px; }
-.suggest-title { font-family: 'Archivo', sans-serif; font-weight: 900; font-size: 17px; }
+.suggest-title { font-family: 'Nunito', sans-serif; font-weight: 900; font-size: 17px; }
 .suggest-row { opacity: 0; transform: translateX(-14px); transition: opacity 0.4s ease, transform 0.4s cubic-bezier(0.22, 1, 0.36, 1); }
 .suggest-card.revealed .suggest-row { opacity: 1; transform: none; }
 .suggest-photo { width: 40px; height: 40px; cursor: pointer; }
@@ -879,7 +888,7 @@ body.light .modal-backdrop { background: rgba(30, 41, 66, 0.45); }
 .streak-flame { animation: flamePulse 1.1s ease-in-out infinite; }
 @keyframes flamePulse { 0%,100% { transform: scale(1); } 50% { transform: scale(1.12); } }
 .streak-count {
-  font-family: 'Archivo', sans-serif; font-weight: 900; font-size: 88px; color: var(--flame);
+  font-family: 'Nunito', sans-serif; font-weight: 900; font-size: 88px; color: var(--flame);
   line-height: 1; margin-top: 6px; transition: transform 0.2s;
 }
 .streak-count.bumped { animation: countBump 0.5s cubic-bezier(0.34, 1.56, 0.64, 1); }
@@ -958,7 +967,7 @@ input.invalid { border-color: #ef4444 !important; }
 
 /* The atomic protocol — preregistration step */
 .predict-q {
-  font-family: 'Archivo', sans-serif; font-weight: 800; font-size: 19px;
+  font-family: 'Nunito', sans-serif; font-weight: 800; font-size: 19px;
   line-height: 1.25; margin: 4px 0 12px;
 }
 .conf-row { display: flex; gap: 8px; }
@@ -978,7 +987,7 @@ input.invalid { border-color: #ef4444 !important; }
   padding: 12px 4px; border-radius: 12px; background: var(--panel-2); border: 2px solid var(--border);
 }
 .receipt-label { font-size: 10px; font-weight: 900; letter-spacing: 1px; text-transform: uppercase; color: var(--muted); }
-.receipt-value { font-family: 'Archivo', sans-serif; font-weight: 900; font-size: 24px; }
+.receipt-value { font-family: 'Nunito', sans-serif; font-weight: 900; font-size: 24px; }
 .receipt-conf { font-size: 10px; font-weight: 700; color: var(--muted); }
 .receipt-pos { color: var(--body); }
 .receipt-neg { color: var(--flame); }
@@ -1012,4 +1021,4 @@ input.invalid { border-color: #ef4444 !important; }
   background: var(--panel-2); border: 2px solid var(--border); font-size: 13px; font-weight: 700;
 }
 .review-surprise .receipt-label { display: block; margin-bottom: 2px; }
-.review-q { margin-top: 14px; font-family: 'Archivo', sans-serif; font-weight: 800; font-size: 17px; }
+.review-q { margin-top: 14px; font-family: 'Nunito', sans-serif; font-weight: 800; font-size: 17px; }

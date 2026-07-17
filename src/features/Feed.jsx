@@ -362,25 +362,33 @@ export function Feed({ state, setState, flash, openMyProfile }) {
 
   return (
     <>
-      {/* Title row + magnifying glass that expands into the search bar */}
+      {/* Title row + search that expands + compose */}
       <div className="page-head feed-head">
         {!searchOpen && (
           <div>
+            <div className="eyebrow" style={{ color: 'var(--blue)' }}>The wall</div>
             <h2 className="page-title">Feed</h2>
           </div>
         )}
-        <div className={`search-pill ${searchOpen ? 'open' : ''}`}>
-          <input
-            ref={searchRef}
-            className="search-input"
-            placeholder="Search friends and grinders…"
-            value={query}
-            onChange={(e) => setQuery(e.target.value)}
-            onKeyDown={(e) => e.key === 'Escape' && toggleSearch()}
-          />
-          <button className="search-toggle" title={searchOpen ? 'Close search' : 'Search people'} onClick={toggleSearch}>
-            {searchOpen ? '✕' : <Ic src={IMGS.search} alt="🔍" size={18} />}
-          </button>
+        <div className="feed-head-actions">
+          <div className={`search-pill ${searchOpen ? 'open' : ''}`}>
+            <input
+              ref={searchRef}
+              className="search-input"
+              placeholder="Search friends and grinders…"
+              value={query}
+              onChange={(e) => setQuery(e.target.value)}
+              onKeyDown={(e) => e.key === 'Escape' && toggleSearch()}
+            />
+            <button className="search-toggle" title={searchOpen ? 'Close search' : 'Search people'} onClick={toggleSearch}>
+              {searchOpen ? '✕' : <Ic src={IMGS.search} alt="Search" size={18} />}
+            </button>
+          </div>
+          {!searchOpen && (
+            <button className="feed-compose-btn" title="New post" onClick={() => setComposing(true)}>
+              <Ic src={IMGS.pencil} alt="New post" size={18} />
+            </button>
+          )}
         </div>
       </div>
 
@@ -473,11 +481,6 @@ export function Feed({ state, setState, flash, openMyProfile }) {
 
       {/* After the last post: animated follow suggestions */}
       <SuggestedFollows state={state} following={following} toggleFollow={toggleFollow} onView={setViewing} />
-
-      {/* Floating create button — YouTube/IG style */}
-      <button className="fab" title="Create new post" onClick={() => setComposing(true)}>
-        <Ic src={IMGS.pencil} alt="✏️" size={22} />
-      </button>
 
       {composing && (
         <div className="modal-backdrop" onClick={() => setComposing(false)}>
