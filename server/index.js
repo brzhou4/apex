@@ -7,6 +7,9 @@ import cors from 'cors'
 import Anthropic from '@anthropic-ai/sdk'
 import { execFile } from 'node:child_process'
 
+// Pick up ANTHROPIC_API_KEY / CLAUDE_CODE_OAUTH_TOKEN from .env if present.
+try { process.loadEnvFile(new URL('../.env', import.meta.url)) } catch {}
+
 const app = express()
 app.use(cors())
 app.use(express.json())
