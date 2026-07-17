@@ -207,16 +207,18 @@ export function makeCustomTask({ pillar, title, unit, goldTarget }) {
   }
 }
 
-// One daily task per pillar, tiered, with targets nudged by the user's baseline.
+// One daily task per RELEVANT pillar, tiered, with targets nudged by the
+// user's baseline. A dream that never touches the body gets no steps task.
 export function buildDailyTasks(parsed, baseline = {}) {
+  const rel = { body: true, mind: true, intellect: true, ...(baseline.relevance || {}) }
   const stepGold = baseline.steps ? Math.max(6000, Math.round((baseline.steps * 1.15) / 100) * 100) : 8000
   const studyGold = baseline.studyHrs ? Math.max(20, Math.round((baseline.studyHrs * 60) / 7 / 5) * 5) : 25
   const domainTitle = (parsed._tasks && parsed._tasks[0]) || 'Deep-work sprint'
   return [
-    { id: 't-body', pillar: 'BODY', title: 'Daily steps', unit: 'steps', tiers: makeTiers(stepGold), achievedTier: null },
-    { id: 't-mind', pillar: 'MIND', title: 'Meditate / journal', unit: 'min', tiers: makeTiers(10), achievedTier: null },
-    { id: 't-intel', pillar: 'INTELLECT', title: domainTitle, unit: 'min focus', tiers: makeTiers(studyGold), achievedTier: null },
-  ]
+    rel.body && { id: 't-body', pillar: 'BODY', title: 'Daily steps', unit: 'steps', tiers: makeTiers(stepGold), achievedTier: null },
+    rel.mind && { id: 't-mind', pillar: 'MIND', title: 'Meditate / journal', unit: 'min', tiers: makeTiers(10), achievedTier: null },
+    rel.intellect && { id: 't-intel', pillar: 'INTELLECT', title: domainTitle, unit: 'min focus', tiers: makeTiers(studyGold), achievedTier: null },
+  ].filter(Boolean)
 }
 
 // --- Human Score (0–1000 per pillar) computed from the actual baseline intake ---
@@ -271,6 +273,10 @@ export function bmiFrom(baseline) {
 }
 
 export function computeHumanScore(baseline = {}) {
+  // Which pillars this person's dream actually measures — saved with the
+  // baseline at intake. Unmeasured pillars score null, not 0: "we didn't
+  // look" is different from "you scored zero".
+  const rel = { body: true, mind: true, intellect: true, ...(baseline.relevance || {}) }
   // Only believable values count — out-of-range entries score as absent.
   const steps = inRange(baseline, 'steps') ?? 0
   const workouts = inRange(baseline, 'workouts') ?? 0
@@ -300,9 +306,12 @@ export function computeHumanScore(baseline = {}) {
   const intellect = Math.round(clamp01(studyHrs / 20) * 400 + clamp01(skill / 10) * 400 + (GRADE_PTS[baseline.gradeLevel] || 100))
 
   const clamp1000 = (x) => Math.max(0, Math.min(1000, x))
-  const b = clamp1000(body), m = clamp1000(mind), it = clamp1000(intellect)
-  const total = Math.round((b + m + it) / 3)
-  return { mind: m, body: b, intellect: it, total, target: Math.min(960, total + 380), bmi }
+  const b = rel.body ? clamp1000(body) : null
+  const m = rel.mind ? clamp1000(mind) : null
+  const it = rel.intellect ? clamp1000(intellect) : null
+  const measured = [b, m, it].filter((x) => x != null)
+  const total = measured.length ? Math.round(measured.reduce((s, x) => s + x, 0) / measured.length) : 0
+  return { mind: m, body: b, intellect: it, total, target: Math.min(960, total + 380), bmi: rel.body ? bmi : null }
 }
 
 export function buildRoadmap(parsed) {
@@ -687,12 +696,23 @@ export function parseGoals(text) {
   return goals.length ? goals : [{ goalId: 'g0', typeId: 'generic', icon: '🎯', typeLabel: 'Custom Goal', text: text || 'Level up' }]
 }
 
-// What the dream text asks of the body — drives which OPTIONAL baseline
-// fields appear. No mention, no fields, no invented tasks.
+// What the dream text asks of you — drives which baseline sections appear.
+// The baseline only measures distance-to-goal: if the dream never mentions
+// the body, we don't weigh you. An unrecognizable dream measures everything
+// (we can't tell what matters, so we look at the whole picture).
 export function goalFlags(text = '') {
+  const strength = /(strength|stronger|muscle|jacked|swole|lift|lifting|bench|squat|deadlift|bulk)/i.test(text)
+  const cut = /(lose (some |a little )?(weight|fat)|weight loss|cut|cutting|lean|shred|slim|fat loss|drop (some )?(pounds|lbs))/i.test(text)
+  const body = strength || cut ||
+    /(fit\b|fitness|gym|workout|train(ing)?\b|running|\brun\b|marathon|\b5k\b|\b10k\b|sprint|swim|bike|cycling|sport|soccer|basketball|football|tennis|boxing|mma|wrestl|climb|hike|yoga|\babs\b|athlet|health|weight|stamina|endurance|steps)/i.test(text)
+  const mind = /(meditat|mindful|stress|anxi|calm|mental|happi|confiden|disciplin|journal|feeling|emotion|identity|spiritual|therap|self.?esteem|social life|friend|dating|relationship|lonel)/i.test(text)
+  const intellect = /(study|school|grade|gpa|\bsat\b|\bact\b|exam|\btest\b|college|universit|learn|read|book|\bcode\b|coding|program|language|skill|career|job|intern|business|startup|launch|money|invest|follower|content|youtube|debate|chess|instrument|piano|guitar|\bart\b|writ|1600)/i.test(text)
+  const any = body || mind || intellect
   return {
-    strength: /(strength|stronger|muscle|jacked|swole|lift|lifting|bench|squat|deadlift|bulk)/i.test(text),
-    cut: /(lose (some |a little )?(weight|fat)|weight loss|cut|cutting|lean|shred|slim|fat loss|drop (some )?(pounds|lbs))/i.test(text),
+    strength, cut,
+    body: any ? body : true,
+    mind: any ? mind : true,
+    intellect: any ? intellect : true,
   }
 }
 

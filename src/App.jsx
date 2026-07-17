@@ -94,9 +94,10 @@ function Onboarding({ onDone }) {
   const [goalDetails, setGoalDetails] = useState({}) // { goalId: { key: value } }
   const [parsing, setParsing] = useState(false)
   const [building, setBuilding] = useState(false)
-  const score = useMemo(() => computeHumanScore(bl), [bl])
-  // Dream-driven baseline extras + honesty checks.
+  // Dream-driven baseline sections + honesty checks. The relevance flags ride
+  // along with the baseline so unmeasured pillars score null, not zero.
   const flags = useMemo(() => goalFlags(goal), [goal])
+  const score = useMemo(() => computeHumanScore({ ...bl, relevance: flags }), [bl, flags])
   const blErrors = useMemo(() => validateBaseline(bl), [bl])
 
   const examples = [
@@ -110,7 +111,7 @@ function Onboarding({ onDone }) {
     'Run a marathon',
   ]
 
-  const baselineReady = isBaselineReady(bl)
+  const baselineReady = isBaselineReady(bl, flags)
   const set = (k) => (e) => setBl((b) => ({ ...b, [k]: e.target.value }))
   const setDetail = (goalId, key) => (e) =>
     setGoalDetails((d) => ({ ...d, [goalId]: { ...d[goalId], [key]: e.target.value } }))
@@ -130,7 +131,8 @@ function Onboarding({ onDone }) {
     if (building) return
     setBuilding(true)
     const p = parsed || parseDreamGoal(goal)
-    const sc = computeHumanScore(bl)
+    const blWithRel = { ...bl, relevance: { body: flags.body, mind: flags.mind, intellect: flags.intellect } }
+    const sc = computeHumanScore(blWithRel)
     // Each goal gets a Claude-written plan when the API server is up; the
     // local template only exists so onboarding never blocks. The personal
     // context is what makes plans fit THIS person; details are stored on the
@@ -167,11 +169,11 @@ function Onboarding({ onDone }) {
       dreamGoal: goal.trim(),
       parsed: p,
       plan: { goals: planGoals, createdOn: todayKey() },
-      baseline: bl,
+      baseline: blWithRel,
       score: sc,
       scoreHistory: [{ date: todayKey(), total: sc.total, mind: sc.mind, body: sc.body, intellect: sc.intellect }],
       roadmap: buildRoadmap(p),
-      tasks: [...buildDailyTasks(p, bl), ...goalTasks],
+      tasks: [...buildDailyTasks(p, blWithRel), ...goalTasks],
       squad: null, // no auto-party — you create your own and invite people you follow
       duel: buildDuel(),
       health: null,
@@ -408,9 +410,10 @@ function Field({ label, children }) {
 }
 
 // The required fields that drive a meaningful score — present AND believable.
-export function isBaselineReady(bl) {
-  const filled = !!(bl.heightFt && bl.weightLbs && bl.steps !== '' &&
-    bl.sleepHrs !== '' && bl.studyHrs !== '' && bl.gradeLevel)
+export function isBaselineReady(bl, flags = { body: true, mind: true, intellect: true }) {
+  const filled = !!(bl.sleepHrs !== '' &&
+    (!flags.body || (bl.heightFt && bl.weightLbs && bl.steps !== '')) &&
+    (!flags.intellect || (bl.studyHrs !== '' && bl.gradeLevel)))
   return filled && Object.keys(validateBaseline(bl)).length === 0
 }
 
@@ -428,31 +431,44 @@ function NumField({ label, field, bl, set, errors, placeholder }) {
 }
 
 // Shared baseline intake — used by onboarding and re-baselining in Profile.
-// `flags` (from the dream text) decides whether the optional strength / cut
-// sections exist at all: no mention, no fields.
-function BaselineFields({ bl, set, errors = {}, flags = {} }) {
+// `flags` (from the dream text) decides which sections exist at all: the
+// baseline only measures distance-to-goal, so a dream that never mentions
+// the body never asks for your weight. Sleep + skill are always asked —
+// every goal runs on recovery and has a skill level.
+function BaselineFields({ bl, set, errors = {}, flags = { body: true, mind: true, intellect: true } }) {
   return (
     <>
-      <div className="form-section"><Ic src={IMGS.biceps} alt="💪" size={16} /> Body</div>
+      <div className="form-section"><Ic src={IMGS.dart} alt="🎯" size={16} /> Basics</div>
       <div className="form-grid">
-        <NumField label="Age" field="age" bl={bl} set={set} errors={errors} placeholder="yrs" />
-        <Field label="Sex">
-          <select value={bl.sex} onChange={set('sex')}>
-            <option value="">—</option><option>Male</option><option>Female</option><option>Other</option>
-          </select>
-        </Field>
-        <Field label="Height">
-          <div className="inline">
-            <input type="number" className={errors.heightFt ? 'invalid' : ''} value={bl.heightFt} onChange={set('heightFt')} placeholder="ft" />
-            <input type="number" className={errors.heightIn ? 'invalid' : ''} value={bl.heightIn} onChange={set('heightIn')} placeholder="in" />
-          </div>
-          {(errors.heightFt || errors.heightIn) && <span className="field-error">{errors.heightFt || errors.heightIn}</span>}
-        </Field>
-        <NumField label="Weight" field="weightLbs" bl={bl} set={set} errors={errors} placeholder="lbs" />
-        <NumField label="Avg daily steps" field="steps" bl={bl} set={set} errors={errors} placeholder="e.g. 6000" />
-        <NumField label="Workouts / week" field="workouts" bl={bl} set={set} errors={errors} placeholder="0–7" />
         <NumField label="Sleep (hrs/night)" field="sleepHrs" bl={bl} set={set} errors={errors} placeholder="e.g. 7" />
+        <Field label={`Skill in goal (1–10): ${bl.skill}`}>
+          <input type="range" min="1" max="10" value={bl.skill} onChange={set('skill')} />
+        </Field>
       </div>
+
+      {flags.body && (
+        <>
+          <div className="form-section"><Ic src={IMGS.biceps} alt="💪" size={16} /> Body (from your dream)</div>
+          <div className="form-grid">
+            <NumField label="Age" field="age" bl={bl} set={set} errors={errors} placeholder="yrs" />
+            <Field label="Sex">
+              <select value={bl.sex} onChange={set('sex')}>
+                <option value="">—</option><option>Male</option><option>Female</option><option>Other</option>
+              </select>
+            </Field>
+            <Field label="Height">
+              <div className="inline">
+                <input type="number" className={errors.heightFt ? 'invalid' : ''} value={bl.heightFt} onChange={set('heightFt')} placeholder="ft" />
+                <input type="number" className={errors.heightIn ? 'invalid' : ''} value={bl.heightIn} onChange={set('heightIn')} placeholder="in" />
+              </div>
+              {(errors.heightFt || errors.heightIn) && <span className="field-error">{errors.heightFt || errors.heightIn}</span>}
+            </Field>
+            <NumField label="Weight" field="weightLbs" bl={bl} set={set} errors={errors} placeholder="lbs" />
+            <NumField label="Avg daily steps" field="steps" bl={bl} set={set} errors={errors} placeholder="e.g. 6000" />
+            <NumField label="Workouts / week" field="workouts" bl={bl} set={set} errors={errors} placeholder="0–7" />
+          </div>
+        </>
+      )}
 
       {flags.strength && (
         <>
@@ -473,28 +489,33 @@ function BaselineFields({ bl, set, errors = {}, flags = {} }) {
         </>
       )}
 
-      <div className="form-section"><Ic src={IMGS.brain} alt="🧠" size={16} /> Mind</div>
-      <div className="form-grid">
-        <Field label={`Stress (1–10): ${bl.stress}`}>
-          <input type="range" min="1" max="10" value={bl.stress} onChange={set('stress')} />
-        </Field>
-        <NumField label="Meditate (days/wk)" field="meditDays" bl={bl} set={set} errors={errors} placeholder="0–7" />
-      </div>
+      {flags.mind && (
+        <>
+          <div className="form-section"><Ic src={IMGS.brain} alt="🧠" size={16} /> Mind (from your dream)</div>
+          <div className="form-grid">
+            <Field label={`Stress (1–10): ${bl.stress}`}>
+              <input type="range" min="1" max="10" value={bl.stress} onChange={set('stress')} />
+            </Field>
+            <NumField label="Meditate (days/wk)" field="meditDays" bl={bl} set={set} errors={errors} placeholder="0–7" />
+          </div>
+        </>
+      )}
 
-      <div className="form-section"><Ic src={IMGS.books} alt="📚" size={16} /> Intellect</div>
-      <div className="form-grid">
-        <Field label="Education level">
-          <select value={bl.gradeLevel} onChange={set('gradeLevel')}>
-            <option value="">—</option>
-            <option>Middle school</option><option>High school</option><option>College</option>
-            <option>Grad school</option><option>Working professional</option>
-          </select>
-        </Field>
-        <NumField label="Study/learn (hrs/wk)" field="studyHrs" bl={bl} set={set} errors={errors} placeholder="e.g. 5" />
-        <Field label={`Skill in goal (1–10): ${bl.skill}`}>
-          <input type="range" min="1" max="10" value={bl.skill} onChange={set('skill')} />
-        </Field>
-      </div>
+      {flags.intellect && (
+        <>
+          <div className="form-section"><Ic src={IMGS.books} alt="📚" size={16} /> Intellect (from your dream)</div>
+          <div className="form-grid">
+            <Field label="Education level">
+              <select value={bl.gradeLevel} onChange={set('gradeLevel')}>
+                <option value="">—</option>
+                <option>Middle school</option><option>High school</option><option>College</option>
+                <option>Grad school</option><option>Working professional</option>
+              </select>
+            </Field>
+            <NumField label="Study/learn (hrs/wk)" field="studyHrs" bl={bl} set={set} errors={errors} placeholder="e.g. 5" />
+          </div>
+        </>
+      )}
     </>
   )
 }
@@ -519,6 +540,15 @@ function Sparkline({ points, color = 'var(--accent)' }) {
 }
 
 function ScoreBar({ label, value, color }) {
+  // null = this pillar isn't part of the dream, so it was never measured.
+  // Saying "not measured" beats faking a zero — we didn't look.
+  if (value == null) {
+    return (
+      <div style={{ marginTop: 10, opacity: 0.55 }}>
+        <div className="score-row"><span>{label}</span><span style={{ fontSize: 11 }}>not measured — not in this dream</span></div>
+      </div>
+    )
+  }
   return (
     <div style={{ marginTop: 10 }}>
       <div className="score-row"><span>{label}</span><span>{value}/1000</span></div>
@@ -3267,6 +3297,7 @@ function Profile({ state, setState, flash, onReBaseline, onSyncHealth, onBack, b
   const [editing, setEditing] = useState(false)
   const [bl, setBl] = useState(state.baseline || EMPTY_BASELINE)
   const set = (k) => (e) => setBl((b) => ({ ...b, [k]: e.target.value }))
+  const blFlags = goalFlags(state.dreamGoal || '')
   const score = state.score || computeHumanScore(state.baseline || {})
   const history = state.scoreHistory || []
   const prev = history.length > 1 ? history[history.length - 2].total : null
@@ -3277,8 +3308,8 @@ function Profile({ state, setState, flash, onReBaseline, onSyncHealth, onBack, b
   const shownTotal = Math.min(1000, score.total + grindBonus)
 
   function save() {
-    if (!isBaselineReady(bl)) return
-    onReBaseline(bl)
+    if (!isBaselineReady(bl, blFlags)) return
+    onReBaseline({ ...bl, relevance: { body: blFlags.body, mind: blFlags.mind, intellect: blFlags.intellect } })
     setEditing(false)
   }
 
@@ -3287,10 +3318,10 @@ function Profile({ state, setState, flash, onReBaseline, onSyncHealth, onBack, b
     return (
       <div className="card">
         <h3>Re-baseline</h3>
-        <div className="sub" style={{ marginBottom: 8 }}>Update your numbers — we’ll snapshot the new score onto your trend.</div>
-        <BaselineFields bl={bl} set={set} errors={blErrors} flags={goalFlags(state.dreamGoal || '')} />
+        <div className="sub" style={{ marginBottom: 8 }}>Update your numbers — we’ll snapshot the new score onto your trend. Only what your dream measures is asked.</div>
+        <BaselineFields bl={bl} set={set} errors={blErrors} flags={blFlags} />
         <button className="btn ghost" onClick={() => setEditing(false)} style={{ marginTop: 8 }}>Cancel</button>
-        <button className="btn" disabled={!isBaselineReady(bl)} onClick={save}>
+        <button className="btn" disabled={!isBaselineReady(bl, blFlags)} onClick={save}>
           {Object.keys(blErrors).length > 0 ? 'Fix the highlighted values' : 'Save new baseline'}
         </button>
       </div>
