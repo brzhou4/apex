@@ -175,6 +175,13 @@ export const TITLE_COLORS = {
   'tl-brick': '#ef4444',
 }
 
+// The title a rank tier confers, by tier name — used wherever a profile shows
+// the title its rank earns (Dashboard leaderboard, Feed profile cards).
+export const TIER_TITLE_IDS = {
+  Bronze: 'tl-truecel', Silver: 'tl-sub5', Gold: 'tl-ltn', Platinum: 'tl-htn',
+  Diamond: 'tl-chadlite', Ascendant: 'tl-ltg', Apex: 'tl-apex',
+}
+
 // What each tier is CALLED on a profile — the titles ladder, in order.
 // You're not "Preaching Platinum", you're a High Tier Normie.
 export const TIER_TITLES = {
