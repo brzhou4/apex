@@ -145,6 +145,9 @@ export function Onboarding({ onDone }) {
     <div className="app">
       <div className="brand">A P E X</div>
       <div className="tagline">Your next opponent is you.</div>
+      {step === 'name' && (
+        <div className="tagline-sub">Commit before reality. Compare after. Learn from the difference.</div>
+      )}
 
       {/* Each step is its own screen; the key re-triggers the slide-in. */}
       <div className="onb-step" key={String(step)}>
@@ -327,7 +330,7 @@ export function Onboarding({ onDone }) {
       )}
       </div>
 
-      <div className="foot">Prototype · score from your baseline · rule-based stand-in for the LLM</div>
+      <div className="foot">Commit before reality · your baseline is the starting line · nothing leaves your device</div>
     </div>
   )
 }
