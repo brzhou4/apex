@@ -1,4 +1,4 @@
-import { client, readJsonBody } from './_lib/claude.js'
+import { client, gatewayReady, callGatewayJSON, readJsonBody } from './_lib/claude.js'
 
 const SCHEMA = {
   type: 'object',
@@ -26,19 +26,25 @@ export default async function handler(req, res) {
   const body = readJsonBody(req)
   const goal = ((body && body.goal) || '').toString().slice(0, 500)
   if (!goal.trim()) return res.status(400).json({ error: 'missing_goal' })
-  if (!client) {
-    return res.status(503).json({ error: 'no_api_key', message: 'Set ANTHROPIC_API_KEY to enable the Claude goal parser.' })
+  if (!client && !gatewayReady) {
+    return res.status(503).json({ error: 'no_api_key', message: 'Set ANTHROPIC_API_KEY or BUTTERBASE_API_KEY to enable the Claude goal parser.' })
   }
   try {
-    const response = await client.messages.create({
-      model: 'claude-opus-4-8',
-      max_tokens: 1024,
-      system: SYSTEM,
-      messages: [{ role: 'user', content: `Dream goal: ${goal}` }],
-      output_config: { format: { type: 'json_schema', schema: SCHEMA } },
-    })
-    const text = response.content.find((b) => b.type === 'text')?.text || '{}'
-    const parsed = JSON.parse(text)
+    let parsed
+    if (client) {
+      const response = await client.messages.create({
+        model: 'claude-opus-4-8',
+        max_tokens: 1024,
+        system: SYSTEM,
+        messages: [{ role: 'user', content: `Dream goal: ${goal}` }],
+        output_config: { format: { type: 'json_schema', schema: SCHEMA } },
+      })
+      const text = response.content.find((b) => b.type === 'text')?.text || '{}'
+      parsed = JSON.parse(text)
+    } else {
+      const spec = 'Return a single JSON object: { "domainLabel": "...", "motivation": "intrinsic|extrinsic", "tasks": ["skill task", "body task", "mind task"] }'
+      parsed = await callGatewayJSON(`${SYSTEM}\n\n${spec}`, `Dream goal: ${goal}`, { maxTokens: 1024 })
+    }
     res.status(200).json({ source: 'claude', ...parsed })
   } catch (err) {
     console.error('parse-goal error:', err?.message)

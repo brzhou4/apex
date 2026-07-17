@@ -1,4 +1,4 @@
-import { client, readJsonBody } from './_lib/claude.js'
+import { client, gatewayReady, callGatewayJSON, readJsonBody } from './_lib/claude.js'
 
 // Takes ONE goal (however unusual — "own a capybara" included) plus the
 // user's commitment answers, and returns a complete 8-week plan the app can
@@ -64,6 +64,17 @@ Hard rules:
 - If a "note" is present in the context, it is the user telling you what the last plan got wrong — treat it as the highest-priority instruction.
 - Keep strings tight: focus lines under 12 words, objectives under 16 words.`
 
+// Plain-text schema spec for the gateway path (no structured outputs there).
+const PLAN_SPEC = `Return a single JSON object with EXACTLY these fields:
+{
+  "typeLabel": "short 2-4 word label for the goal",
+  "scheduleLabel": "one-line weekly rhythm summary",
+  "schedule": [ { "day": "Daily|Mon|...|Sun", "focus": "..." } ]  (2-4 items),
+  "weeks": [ { "week": 1-8, "focus": "one sentence", "objectives": ["...","...","..."] } ]  (EXACTLY 8 items, 3 objectives each),
+  "task": { "pillar": "MIND|BODY|INTELLECT", "title": "short imperative daily task", "unit": "min", "goldTarget": 10-60 },
+  "progress": 0-100
+}`
+
 function normalizePlan(plan) {
   if (!Array.isArray(plan.weeks) || plan.weeks.length !== 8) throw new Error('bad weeks')
   if (!plan.task || !plan.task.title) throw new Error('bad task')
@@ -81,8 +92,8 @@ export default async function handler(req, res) {
   const details = (body && body.details) || {}
   const context = (body && body.context) || {}
   if (!goal.trim()) return res.status(400).json({ error: 'missing_goal' })
-  if (!client) {
-    return res.status(503).json({ error: 'no_api_key', message: 'Set ANTHROPIC_API_KEY to enable AI plans.' })
+  if (!client && !gatewayReady) {
+    return res.status(503).json({ error: 'no_api_key', message: 'Set ANTHROPIC_API_KEY or BUTTERBASE_API_KEY to enable AI plans.' })
   }
 
   const detailLines = Object.entries(details)
@@ -96,16 +107,24 @@ export default async function handler(req, res) {
   const userPrompt = `Goal, in the user's words: "${goal}"\n\nTheir answers about this goal:\n${detailLines || '- (none given)'}\n\nAbout this person:\n${ctxLines || '- (nothing shared)'}\n\nBuild the 8-week plan. It must pass the specificity test on every objective and visibly use their context — this plan should not fit anyone else.`
 
   try {
-    const response = await client.messages.create({
-      model: 'claude-sonnet-5',
-      max_tokens: 2048,
-      system: PLAN_SYSTEM,
-      messages: [{ role: 'user', content: userPrompt }],
-      output_config: { format: { type: 'json_schema', schema: PLAN_SCHEMA } },
-    })
-    const text = response.content.find((b) => b.type === 'text')?.text || '{}'
-    const plan = JSON.parse(text)
-    res.status(200).json({ source: 'claude', via: 'api', ...normalizePlan(plan) })
+    let plan
+    let via
+    if (client) {
+      const response = await client.messages.create({
+        model: 'claude-sonnet-5',
+        max_tokens: 2048,
+        system: PLAN_SYSTEM,
+        messages: [{ role: 'user', content: userPrompt }],
+        output_config: { format: { type: 'json_schema', schema: PLAN_SCHEMA } },
+      })
+      const text = response.content.find((b) => b.type === 'text')?.text || '{}'
+      plan = JSON.parse(text)
+      via = 'api'
+    } else {
+      plan = await callGatewayJSON(`${PLAN_SYSTEM}\n\n${PLAN_SPEC}`, userPrompt)
+      via = 'gateway'
+    }
+    res.status(200).json({ source: 'claude', via, ...normalizePlan(plan) })
   } catch (err) {
     console.error('plan-goal error:', err?.message)
     res.status(502).json({ error: 'llm_failed', message: err?.message })
