@@ -113,11 +113,15 @@ function TaskBox({ task, onStart, onLog, onRemove }) {
         {task.tiers.map((tier, i) => {
           const meta = TIER_META[tier.name]
           const hit = achieved != null && i <= achieved
+          // Every tier wears its own color — full when earned, softly dimmed
+          // when still locked, so the ladder reads as a vibrant rank rainbow.
           return (
             <div
               key={tier.name}
               className={`ladder-step ${hit ? 'hit' : ''}`}
-              style={hit ? { borderColor: meta.color, color: meta.color } : undefined}
+              style={hit
+                ? { borderColor: meta.color, color: meta.color, background: `${meta.color}1f` }
+                : { color: meta.color, opacity: 0.5 }}
               title={`${meta.fancy}: ${tier.threshold} ${task.unit} · ${tier.xp} XP`}
               onClick={() => !autoLog && !timeBased && onLog(task.id, i)}
             >

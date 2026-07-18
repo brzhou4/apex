@@ -158,7 +158,7 @@ export function Plan({ state, setState, flash }) {
       <div className="card">
         <h3>Gap to target</h3>
         <div className="score-row"><span>Human Score</span><span>{score.total} / {score.target}</span></div>
-        <div className="bar"><i style={{ width: `${pct}%`, background: 'var(--green)' }} /></div>
+        <div className="bar"><i style={{ width: `${pct}%`, background: 'var(--primary)' }} /></div>
         <div className="sub" style={{ marginTop: 8 }}>
           Week {currentWeek} of {maxWeeks} · {gap > 0 ? `${gap} points to your target — keep stacking tiers and streaks.` : 'Target reached — re-baseline in Profile to raise the bar.'}
         </div>
@@ -182,7 +182,7 @@ export function Plan({ state, setState, flash }) {
             const isPast = r.week < currentWeek
             return (
               <div className={`task ${isPast ? 'done' : ''}`} key={r.week}>
-                <div className="ic" style={isCurrent ? { borderColor: 'var(--blue)', color: 'var(--blue)' } : isPast ? { borderColor: 'var(--green)', color: 'var(--green)' } : undefined}>
+                <div className="ic" style={isCurrent ? { borderColor: 'var(--blue)', color: 'var(--blue)' } : isPast ? { borderColor: 'var(--primary)', color: 'var(--primary)' } : undefined}>
                   {isPast ? '✓' : r.week}
                 </div>
                 <div className="grow">
