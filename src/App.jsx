@@ -543,7 +543,7 @@ function Dashboard({ state, setState }) {
         <span className="brand-sm">APEX</span>
         <div className="topbar-right">
           {state.shields > 0 && <span className="tb-stat" style={{ color: 'var(--body)' }}><Ic src={IMGS.shield} alt="🛡️" size={18} /> {state.shields}</span>}
-          <span className="tb-stat" style={{ color: 'var(--flame)' }}><Ic src={IMGS.fire} alt="🔥" size={18} /> {state.streak}</span>
+          <span className="tb-stat tb-streak" style={{ color: 'var(--flame)' }}><Ic src={IMGS.fire} alt="🔥" size={18} /> {state.streak}</span>
           <span className="tb-stat" style={{ color: 'var(--emerald)' }}><Ic src={IMGS.gem} alt="emeralds" size={18} /> {state.emeralds || 0}</span>
           <span className="tb-stat" title="Pet fruit — earned from Gold+ finishes"><Ic src={IMGS.apple} alt="fruit" size={18} /> {state.fruits || 0}</span>
           <button

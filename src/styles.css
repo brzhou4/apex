@@ -141,14 +141,22 @@ textarea:focus, input:focus, select:focus { outline: none; border-color: var(--b
 
 /* Chunky 3D "pressable" buttons */
 .btn {
+  position: relative; overflow: hidden;
   display: block; width: 100%; margin-top: 14px;
-  background: var(--primary); color: #fff; border: none; border-radius: 16px;
+  background: linear-gradient(180deg, #33a8ff, var(--primary)); color: #fff; border: none; border-radius: 16px;
   padding: 14px; font-weight: 800; font-size: 15px; cursor: pointer;
   letter-spacing: 0.8px; text-transform: uppercase; font-family: inherit;
-  box-shadow: 0 4px 0 var(--primary-d);
+  box-shadow: 0 4px 0 var(--primary-d), 0 8px 22px rgba(30,155,255,0.35);
   transition: filter 0.08s ease;
 }
-.btn:hover:not(:disabled) { filter: brightness(1.05); }
+/* A slow shine sweep so the CTA reads alive, not a flat slab */
+.btn::after {
+  content: ''; position: absolute; top: 0; left: -60%; width: 45%; height: 100%;
+  background: linear-gradient(100deg, transparent, rgba(255,255,255,0.35), transparent);
+  transform: skewX(-18deg); animation: btnShine 4.5s ease-in-out infinite;
+}
+@keyframes btnShine { 0%, 55% { left: -60%; } 78%, 100% { left: 130%; } }
+.btn:hover:not(:disabled) { filter: brightness(1.06); }
 .btn:active:not(:disabled) { transform: translateY(4px); box-shadow: 0 0 0 var(--primary-d); }
 .btn:disabled { background: #2b3a42; color: #6b7a82; box-shadow: 0 4px 0 #223037; cursor: not-allowed; }
 .btn.ghost {
@@ -535,13 +543,19 @@ select { appearance: none; }
 .topbar {
   display: flex; align-items: center; justify-content: space-between;
   position: sticky; top: 0; z-index: 40;
-  background: rgba(5, 8, 15, 0.92); backdrop-filter: blur(8px);
-  padding: 10px 2px; margin: -6px -2px 0; border-bottom: 2px solid var(--border);
+  background: linear-gradient(120deg, rgba(20,30,58,0.96), rgba(15,23,41,0.96));
+  backdrop-filter: blur(8px);
+  padding: 10px 12px; margin: -6px -8px 0; border: 2px solid var(--border);
+  border-radius: 0 0 18px 18px; box-shadow: 0 6px 20px rgba(0,0,0,0.35);
 }
 .brand-sm {
   font-family: 'Nunito', sans-serif; font-weight: 900; font-size: 18px;
-  letter-spacing: 4px; color: var(--blue);
+  letter-spacing: 4px;
+  background: linear-gradient(90deg, var(--primary), var(--blue) 55%, var(--violet));
+  -webkit-background-clip: text; background-clip: text; -webkit-text-fill-color: transparent;
+  background-size: 200% auto; animation: brandShimmer 4s linear infinite;
 }
+@keyframes brandShimmer { to { background-position: 200% center; } }
 .topbar-right { display: flex; align-items: center; gap: 12px; }
 .tb-stat { display: inline-flex; align-items: center; gap: 4px; font-weight: 900; font-size: 15px; }
 .tb-avatar {
@@ -1028,3 +1042,87 @@ input.invalid { border-color: #ef4444 !important; }
 }
 .review-surprise .receipt-label { display: block; margin-bottom: 2px; }
 .review-q { margin-top: 14px; font-family: 'Nunito', sans-serif; font-weight: 800; font-size: 17px; }
+
+/* ============================================================
+   LIVING UI — motion + energy layer. Idle micro-animations,
+   colored glows, staggered entrances, breathing background.
+   Everything here degrades gracefully under reduced-motion.
+   ============================================================ */
+
+/* Breathing colored glows behind everything */
+body::before {
+  content: ''; position: fixed; inset: -25%; z-index: -1; pointer-events: none;
+  background:
+    radial-gradient(380px 380px at 22% 28%, rgba(30,155,255,0.12), transparent 62%),
+    radial-gradient(340px 340px at 80% 68%, rgba(181,123,255,0.11), transparent 62%),
+    radial-gradient(300px 300px at 60% 12%, rgba(52,227,155,0.07), transparent 62%);
+  animation: bgDrift 20s ease-in-out infinite alternate;
+}
+@keyframes bgDrift {
+  from { transform: translate(-3%, -2%) scale(1); }
+  to   { transform: translate(3%, 3%) scale(1.08); }
+}
+
+/* No shine on secondary/disabled buttons */
+.btn.ghost::after, .btn:disabled::after { display: none; }
+
+/* Cards spring in, staggered down the page */
+.view .card, .view .task-card { animation: cardRise 0.5s cubic-bezier(0.22, 1.2, 0.4, 1) both; }
+.view .card:nth-of-type(1) { animation-delay: 0.02s; }
+.view .card:nth-of-type(2) { animation-delay: 0.09s; }
+.view .card:nth-of-type(3) { animation-delay: 0.16s; }
+.view .card:nth-of-type(4) { animation-delay: 0.23s; }
+.view .card:nth-of-type(5) { animation-delay: 0.30s; }
+@keyframes cardRise { from { opacity: 0; transform: translateY(16px) scale(0.98); } to { opacity: 1; transform: none; } }
+.card:hover { transform: translateY(-2px); box-shadow: 0 10px 26px rgba(0,0,0,0.28); }
+
+/* HUD stats come alive */
+.tb-streak .ic-img { animation: flicker 2.2s ease-in-out infinite; transform-origin: 50% 80%; filter: drop-shadow(0 0 5px var(--flame)); }
+@keyframes flicker {
+  0%, 100% { transform: scale(1) rotate(0deg); }
+  25% { transform: scale(1.12) rotate(-4deg); }
+  55% { transform: scale(0.96) rotate(3deg); }
+  75% { transform: scale(1.08) rotate(-2deg); }
+}
+.ic-emerald { animation: emeraldPulse 2.8s ease-in-out infinite; }
+@keyframes emeraldPulse {
+  0%, 100% { filter: drop-shadow(0 0 3px rgba(18,209,142,0.5)); }
+  50% { filter: drop-shadow(0 0 8px rgba(18,209,142,0.95)); transform: scale(1.06); }
+}
+.tb-avatar { position: relative; }
+.tb-avatar::after {
+  content: ''; position: absolute; inset: -3px; border-radius: inherit; pointer-events: none;
+  box-shadow: 0 0 0 0 rgba(30,155,255,0.55); animation: avatarPulse 2.6s ease-out infinite;
+}
+@keyframes avatarPulse {
+  0% { box-shadow: 0 0 0 0 rgba(30,155,255,0.5); }
+  70%, 100% { box-shadow: 0 0 0 9px rgba(30,155,255,0); }
+}
+
+/* Rainbow tier badges glow in their own color */
+.ladder-step .ic-img { filter: drop-shadow(0 0 5px currentColor); }
+.ladder-step.hit { animation: badgePop 0.4s cubic-bezier(0.34, 1.56, 0.64, 1); }
+@keyframes badgePop { 0% { transform: scale(0.7); } 60% { transform: scale(1.18); } 100% { transform: scale(1); } }
+
+/* Active nav tab glows + gently bobs */
+.tab.active .ic-img { filter: drop-shadow(0 0 7px currentColor); animation: navBob 2.4s ease-in-out infinite; }
+@keyframes navBob { 0%, 100% { transform: translateY(0) scale(1.12); } 50% { transform: translateY(-3px) scale(1.16); } }
+
+/* XP / score bars get a moving sheen */
+.bar > i, .xpbar > i { position: relative; overflow: hidden; background-image: linear-gradient(90deg, var(--primary), var(--blue)); }
+.xpbar > i::after, .bar > i::after {
+  content: ''; position: absolute; inset: 0;
+  background: linear-gradient(100deg, transparent, rgba(255,255,255,0.4), transparent);
+  transform: translateX(-100%); animation: barSheen 3s ease-in-out infinite;
+}
+@keyframes barSheen { 0%, 40% { transform: translateX(-100%); } 75%, 100% { transform: translateX(220%); } }
+
+/* Level badge & score number have a subtle life */
+.score-big { text-shadow: 0 0 22px rgba(30,155,255,0.35); }
+
+@media (prefers-reduced-motion: reduce) {
+  body::before, .btn::after, .tb-streak .ic-img, .ic-emerald, .tb-avatar::after,
+  .tab.active .ic-img, .xpbar > i::after, .bar > i::after, .view .card, .view .task-card,
+  .brand-sm { animation: none !important; }
+  .card:hover { transform: none; }
+}
